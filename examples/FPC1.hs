@@ -2,8 +2,10 @@ module FPC1 where
 
 [] ++ ys = ys
 (x:xs) ++ ys = x:(xs++ys)
+
 reverse [] = []
 reverse (x:xs) = reverse xs ++ [x]
+
 length [] = 0
 length (_:xs) = 1 + length xs
 

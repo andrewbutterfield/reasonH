@@ -13,13 +13,11 @@ main
 
 
 data HReqState
-  = HReq { hsrc :: String
-         , pres :: Maybe (ParseResult HsModule)
-         , hmod :: Maybe HsModule
+  = HReq { hmod :: Maybe HsModule
          }
   deriving Show
 
-hreqs0 = HReq "" Nothing Nothing
+hreqs0 = HReq Nothing
 
 type HReqCmd       =  REPLCmd      HReqState
 type HReqCmdDescr  =  REPLCmdDescr HReqState
@@ -73,7 +71,7 @@ hreqWelcome = unlines
 cmdLoad :: HReqCmdDescr
 cmdLoad
   = ( "ld"
-    , "show parts of the prover state"
+    , "load Haskell source"
     , unlines
         [ "ld <fname>  -- load examples/<fname>.hs"
         ]
@@ -87,9 +85,7 @@ loadSource (fnroot:_) hreqs
         let result = parseModuleWithMode (ParseMode fname) modstr
         case result of
          ParseFailed loc str
-          -> putStrLn (unlines [show loc, str ])
-             >> return hreqs{ hsrc = modstr
-                            , pres = Just result }
+          -> putStrLn (unlines [show loc, str ]) >> return hreqs
          ParseOk hsmod
           -> do putStrLn "Module AST:\n"
                 let aststr = show hsmod
@@ -97,6 +93,4 @@ loadSource (fnroot:_) hreqs
                 writeFile ("examples/"++fnroot++".ast") aststr
                 putStrLn "\nIsn't it pretty?\n"
                 putStrLn (prettyPrint hsmod)
-                return hreqs{ hsrc = modstr
-                            , pres = Just result
-                            , hmod = Just hsmod }
+                return hreqs{ hmod = Just hsmod }
