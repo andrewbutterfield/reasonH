@@ -2,6 +2,7 @@ module Main where
 
 import Language.Haskell.Parser
 import Language.Haskell.Pretty
+import Language.Haskell.Syntax
 
 import REPL
 
@@ -12,10 +13,13 @@ main
 
 
 data HReqState
-  = HReq { hsrc :: String }
+  = HReq { hsrc :: String
+         , pres :: Maybe (ParseResult HsModule)
+         , hmod :: Maybe HsModule
+         }
   deriving Show
 
-hreqs0 = HReq ""
+hreqs0 = HReq "" Nothing Nothing
 
 type HReqCmd       =  REPLCmd      HReqState
 type HReqCmdDescr  =  REPLCmdDescr HReqState
@@ -77,16 +81,22 @@ cmdLoad
 
 loadSource [] hreqs = putStrLn "no file given" >> return hreqs
 loadSource (fnroot:_) hreqs
-  = do  modstr <- readFile ("examples/"++fnroot++".hs")
+  = do  let fname = fnroot ++ ".hs"
+        modstr <- readFile ("examples/"++fname)
         putStrLn ("Module text:\n\n"++modstr)
-        case parseModule modstr of
+        let result = parseModuleWithMode (ParseMode fname) modstr
+        case result of
          ParseFailed loc str
-          -> putStrLn (unlines [show loc, str ]) >> return hreqs
+          -> putStrLn (unlines [show loc, str ])
+             >> return hreqs{ hsrc = modstr
+                            , pres = Just result }
          ParseOk hsmod
           -> do putStrLn "Module AST:\n"
                 let aststr = show hsmod
                 putStrLn aststr
-                writeFile "examples/SimpleF.ast" aststr
+                writeFile ("examples/"++fnroot++".ast") aststr
                 putStrLn "\nIsn't it pretty?\n"
                 putStrLn (prettyPrint hsmod)
-                return hreqs
+                return hreqs{ hsrc = modstr
+                            , pres = Just result
+                            , hmod = Just hsmod }
