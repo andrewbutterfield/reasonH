@@ -4,13 +4,13 @@ load_haskell FPC1
 
 THEOREM: lengths_add xs ys
 
-            length (xs++ys)  ==  length xs ++ length ys
+            length (xs++ys)  ===  length xs ++ length ys
 
 PROOF: induction xs
 
 BASE:  xs = []
 
-            length ([]++ys)  ==  length [] + length ys
+            length ([]++ys)  ===  length [] + length ys
 
 BASE-PROOF: reduce_both
 
@@ -33,10 +33,10 @@ BASE-QED
 STEP: xs --> (x:xs)
 
 ASSUME:
-             length (xs++ys)  ==  length xs ++ length ys
+             length (xs++ys)  ===  length xs ++ length ys
 
 SHOW:
-         length ((x:xs)++ys)  ==  length (x:xs) ++ length ys
+         length ((x:xs)++ys)  ===  length (x:xs) ++ length ys
 
 STEP-PROOF: reduce-both
 
