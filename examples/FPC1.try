@@ -1,12 +1,13 @@
 THEORY FPC1
 load_theory Arithmetic
+load_theory List
 load_haskell FPC1
 
 THEOREM: lengths_add xs ys
 
             length (xs++ys)  ===  length xs ++ length ys
 
-PROOF: induction xs
+PROOF: induction List xs
 
 BASE:  xs = []
 

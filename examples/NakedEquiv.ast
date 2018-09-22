@@ -1,13 +1,1 @@
-HsModule
-  (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 1, srcColumn = 1})
-  (Module "NakedEquiv")
-  Nothing
-  []
-  [ HsInfixDecl
-      (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 3, srcColumn = 1})
-      HsAssocNone
-      3
-      [HsVarOp (HsSymbol "===")]
-  , HsFunBind
-      [ HsMatch (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 5, srcColumn = 1}) (HsIdent "nakedEquiv") [HsPVar (HsIdent "xs"),HsPVar (HsIdent "ys")] (HsUnGuardedRhs (HsInfixApp (HsInfixApp (HsApp (HsVar (UnQual (HsIdent "length"))) (HsParen (HsInfixApp (HsVar (UnQual (HsIdent "xs"))) (HsQVarOp (UnQual (HsSymbol "++"))) (HsVar (UnQual (HsIdent "ys")))))) (HsQVarOp (UnQual (HsSymbol "==="))) (HsParen (HsApp (HsVar (UnQual (HsIdent "length"))) (HsVar (UnQual (HsIdent "xs")))))) (HsQVarOp (UnQual (HsSymbol "+"))) (HsParen (HsApp (HsVar (UnQual (HsIdent "length"))) (HsVar (UnQual (HsIdent "ys"))))))) []]
-  ]
+HsModule (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 1, srcColumn = 1}) (Module "NakedEquiv") Nothing [] [HsInfixDecl (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 3, srcColumn = 1}) HsAssocNone 3 [HsVarOp (HsSymbol "===")],HsInfixDecl (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 4, srcColumn = 1}) HsAssocNone 3 [HsVarOp (HsSymbol "-->")],HsFunBind [HsMatch (SrcLoc {srcFilename = "NakedEquiv.hs", srcLine = 6, srcColumn = 1}) (HsIdent "nakedEquiv") [HsPVar (HsIdent "xs"),HsPVar (HsIdent "ys")] (HsUnGuardedRhs (HsInfixApp (HsInfixApp (HsApp (HsVar (UnQual (HsIdent "length"))) (HsParen (HsInfixApp (HsVar (UnQual (HsIdent "xs"))) (HsQVarOp (UnQual (HsSymbol "++"))) (HsVar (UnQual (HsIdent "ys")))))) (HsQVarOp (UnQual (HsSymbol "==="))) (HsParen (HsApp (HsVar (UnQual (HsIdent "length"))) (HsVar (UnQual (HsIdent "xs")))))) (HsQVarOp (UnQual (HsSymbol "+"))) (HsParen (HsApp (HsVar (UnQual (HsIdent "length"))) (HsVar (UnQual (HsIdent "ys"))))))) []]]
