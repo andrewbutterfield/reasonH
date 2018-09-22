@@ -1,47 +1,48 @@
 THEORY FPC1
-load_theory Arithmetic
-load_theory List
-load_haskell FPC1
 
-THEOREM: lengths_add xs ys
+IMPORT theory Arithmetic
+IMPORT theory List
+IMPORT haskell FPC1
+
+THEOREM lengths_add xs ys
 
             length (xs++ys)  ===  length xs ++ length ys
 
-PROOF: induction List xs
+STRATEGY induction List xs
 
-BASE:  xs = []
+BASE  xs = []
 
             length ([]++ys)  ===  length [] + length ys
 
-BASE-PROOF: reduce_both
+STRATEGY reduce-both
 
-LHS:
+LHS
 
 length ([]++ys)
  = defn.1 @ ++ 1
 length ys
 
-RHS:
+RHS
 
 length [] + length ys
- = defn.1 length @ 1
+ = defn.1 @ length 1
 0 + length ys
  = add_left_zero l2r @ + 1
 length ys
 
-BASE-QED
+QED BASE
 
-STEP: xs --> (x:xs)
+STEP xs --> (x:xs)
 
-ASSUME:
+ASSUME
              length (xs++ys)  ===  length xs ++ length ys
 
-SHOW:
+SHOW
          length ((x:xs)++ys)  ===  length (x:xs) ++ length ys
 
-STEP-PROOF: reduce-both
+STRATEGY reduce-both
 
-LHS:
+LHS
 
 length ((x:xs)++ys)
  = defn.2 @ ++ 1
@@ -49,7 +50,7 @@ length (x:(xs++ys))
  = defn.2 @ length 1
 1 + length (xs++ys)
 
-RHS:
+RHS
 
 length (x:xs) ++ length ys
  = defn.2 @ length 1
@@ -59,6 +60,6 @@ length (x:xs) ++ length ys
  = lengths_add.assume r2l @ +.2 1
 1 + length (xs++ys)
 
-STEP-QED
+QED STEP
 
 QED lengths_add
