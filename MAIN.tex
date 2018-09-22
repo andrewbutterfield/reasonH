@@ -1,0 +1,44 @@
+\documentclass[fleqn,10pt]{report}
+\usepackage[a4paper, margin=1.1in]{geometry}
+\usepackage{amssymb,amsmath}
+\usepackage{mathpartir}
+\usepackage{listings}
+\usepackage{doc/lstlhs}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\def\includepicture#1{\includegraphics{#1.eps}}
+
+\parindent=0pt % I hate first line indentation
+\parskip=3pt   % I like a visual white gap between paragraphs
+
+\def\reasonH{\textit{\textsf{reasonH}}}
+\def\hreqVersion{0.0.1}
+
+\author{
+Andrew Butterfield
+\\
+{\small \copyright\ 2017--18}
+}
+\title{
+  \reasonH: Equational Reasoning for Haskell
+  \\(v\hreqVersion)
+}
+\date{
+\today
+}
+
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\chapter{\reasonH\ Application}
+
+%\input{app/Main.lhs}
+
+\chapter{\reasonH\ Libraries}
+
+\input{src/Theory.lhs}
+
+\end{document}

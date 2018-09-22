@@ -5,11 +5,35 @@ import Language.Haskell.Pretty
 import Language.Haskell.Syntax
 
 import REPL
+import Theory
 
 main :: IO ()
 main
  = do putStrLn $ show $ idParse "Welcome to hreq"
       repl
+
+
+repl :: IO ()
+repl
+  = do runREPL hreqWelcome hreqConfig hreqs0
+       return ()
+
+hreqWelcome = unlines
+ [ "Welcome to hreq"
+ , "Type '?' for help."
+ ]
+
+hreqConfig
+  = REPLC
+      hreqPrompt
+      hreqEOFreplacmement
+      hreqParser
+      hreqQuitCmds
+      hreqQuit
+      hreqHelpCmds
+      hreqCommands
+      hreqEndCondition
+      hreqEndTidy
 
 
 data HReqState
@@ -26,7 +50,7 @@ type HReqCommands  =  REPLCommands HReqState
 type HReqConfig    =  REPLConfig   HReqState
 
 hreqPrompt :: Bool -> HReqState -> String
-hreqPrompt _ _ = ": "
+hreqPrompt _ _ = "hprover> "
 
 hreqEOFreplacmement = [nquit]
 
@@ -39,41 +63,20 @@ hreqQuit _ hreqs = putStrLn "\nGoodbye!\n" >> return (True, hreqs)
 
 hreqHelpCmds = ["?"]
 
-hreqCommands :: HReqCommands
-hreqCommands = [ cmdLoad ]
 
 -- we don't use these features in the top-level REPL
 hreqEndCondition _ = False
 hreqEndTidy _ hreqs = return hreqs
 
-hreqConfig
-  = REPLC
-      hreqPrompt
-      hreqEOFreplacmement
-      hreqParser
-      hreqQuitCmds
-      hreqQuit
-      hreqHelpCmds
-      hreqCommands
-      hreqEndCondition
-      hreqEndTidy
+hreqCommands :: HReqCommands
+hreqCommands = [ cmdLoadHaskell, cmdLoadTheory ]
 
-repl :: IO ()
-repl
-  = do runREPL hreqWelcome hreqConfig hreqs0
-       return ()
-
-hreqWelcome = unlines
- [ "Welcome to hreq"
- , "Type '?' for help."
- ]
-
-cmdLoad :: HReqCmdDescr
-cmdLoad
-  = ( "ld"
+cmdLoadHaskell :: HReqCmdDescr
+cmdLoadHaskell
+  = ( "lh"
     , "load Haskell source"
     , unlines
-        [ "ld <fname>  -- load examples/<fname>.hs"
+        [ "lh <fname>  -- load examples/<fname>.hs"
         ]
     , loadSource )
 
@@ -94,3 +97,29 @@ loadSource (fnroot:_) hreqs
                 putStrLn "\nIsn't it pretty?\n"
                 putStrLn (prettyPrint hsmod)
                 return hreqs{ hmod = Just hsmod }
+
+
+cmdLoadTheory :: HReqCmdDescr
+cmdLoadTheory
+  = ( "lt"
+    , "load Theory source"
+    , unlines
+        [ "lt <fname>  -- load examples/<fname>.thr"
+        ]
+    , loadTheory )
+
+loadTheory [] hreqs = putStrLn "no file given" >> return hreqs
+loadTheory (fnroot:_) hreqs
+  = do  let fname = fnroot ++ ".thr"
+        thrystr <- readFile ("examples/"++fname)
+        putStrLn ("Theory text:\n\n"++thrystr)
+        let result = parseTheory thrystr
+        case result of
+         ParseFailed loc str
+          -> putStrLn (unlines [show loc, str ]) >> return hreqs
+         ParseOk theory
+          -> do putStrLn "Theory AST:\n"
+                let aststr = show theory
+                putStrLn aststr
+                putStrLn "loadTheory NYFI"
+                return hreqs
