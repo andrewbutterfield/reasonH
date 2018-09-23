@@ -278,6 +278,7 @@ parseRest pmode theory (ln@(lno,str):lns)
 \begin{code}
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
+
       Nothing
         ->  ParseFailed (SrcLoc (parseFilename pmode) lno 1)
                                 "Law expected"
@@ -288,7 +289,7 @@ parseLaw pmode theory lwName lno rest lns
 \begin{code}
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
- | otherwise       =  parseExpr pmode restlns [(lno,rest)]
+ | otherwise       =  parseExpr pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
 
@@ -297,14 +298,17 @@ followed by one or more non-empty lines,
 followed by at least one empty line,
 or the end of the list of lines.
 \begin{code}
-getChunk [] = ([],[])
+getChunk []       =  ([],[])
+
 getChunk (ln@(_,str):lns)
- | emptyLine str = getChunk lns
- | otherwise = getChunk' [ln] lns
-getChunk' snl [] = (reverse snl, [])
+ | emptyLine str  =  getChunk       lns
+ | otherwise      =  getChunk' [ln] lns
+
+getChunk' snl []  =  (reverse snl, [])
+
 getChunk' snl (ln@(_,str):lns)
- | emptyLine str = (reverse snl,lns)
- | otherwise     = getChunk' (ln:snl) lns
+ | emptyLine str  =  (reverse snl,lns)
+ | otherwise      =  getChunk' (ln:snl) lns
 \end{code}
 
 \begin{code}
