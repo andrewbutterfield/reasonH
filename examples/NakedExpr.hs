@@ -1,3 +1,5 @@
 module NakedExpr where
 
-nakedExpr = length (xs++ys)
+nakedExpr =
+  
+  LAW add_assoc       x + (y + z) == (x + y) + z

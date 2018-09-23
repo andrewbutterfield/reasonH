@@ -312,7 +312,7 @@ parseExpr pmode restlns [] = Nothing
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
       ParseFailed _ _  -> Nothing
-      ParseOk _ -> Just (HsLit (HsInt 42), restlns)
+      ParseOk hsmod -> Just (getNakedExpression hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
@@ -321,6 +321,13 @@ parseExpr pmode restlns chunk@((lno,_):_)
       = unlines ( [ "module NakedExpr where"
                   , "nakedExpr = " ]
                   ++ map snd chunk )
+\end{code}
+
+\begin{code}
+getNakedExpression :: HsModule -> HsExp
+getNakedExpression
+ (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ]) = hsexp
+getNakedExpression _ = HsLit (HsInt 42)
 \end{code}
 
 \newpage
