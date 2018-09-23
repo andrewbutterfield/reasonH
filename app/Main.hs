@@ -113,10 +113,13 @@ loadTheory (fnroot:_) hreqs
   = do  let fname = fnroot ++ ".thr"
         thrystr <- readFile ("examples/"++fname)
         putStrLn ("Theory text:\n\n"++thrystr)
-        let result = parseTheory thrystr
+        let result = parseTheory (ParseMode fname) thrystr
         case result of
-         ParseFailed loc str
-          -> putStrLn (unlines [show loc, str ]) >> return hreqs
+         ParseFailed loc msg
+          -> do putStrLn "Theory parse failed"
+                putStrLn $ show loc
+                putStrLn msg
+                return hreqs
          ParseOk theory
           -> do putStrLn "Theory AST:\n"
                 let aststr = show theory

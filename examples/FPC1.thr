@@ -57,7 +57,7 @@ length (x:xs) ++ length ys
 (1 + length xs) ++ length ys
  = add_assoc l2r
 1 + (length xs ++ length ys)
- = lengths_add.assume r2l @ +.2 1
+ = ASSUMPTION r2l @ ++ 1
 1 + length (xs++ys)
 
 QED STEP
