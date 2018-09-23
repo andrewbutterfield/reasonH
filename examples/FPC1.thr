@@ -1,8 +1,8 @@
 THEORY FPC1
 
-IMPORT theory Arithmetic
-IMPORT theory List
-IMPORT haskell FPC1
+IMPORT-THEORY Arithmetic
+IMPORT-THEORY List
+IMPORT-HASKELL FPC1
 
 THEOREM lengths_add xs ys
 

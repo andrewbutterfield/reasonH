@@ -1,11 +1,12 @@
 THEORY Arithmetic
 
-INDUCTION-BASE Nat  0
-INDUCTION-STEP Nat  x --> x + 1
-INDUCTION-INJ  Nat  x == y  ===  (x + 1) == (y + 1)
+LAW add_left_zero   0 + x == x
+LAW add_assoc       x + (y + z) == (x + y) + z
 
-AXIOM add_left_zero   0 + x == x
-AXIOM add_assoc       x + (y + z) == (x + y) + z
+LAW add_right_zero  x + 0 == x
+LAW add_symm        x + y == y + x
 
-DERIVED add_right_zero  x + 0 == x
-DERIVED add_symm        x + y == y + x
+INDUCTION-SCHEME Nat
+BASE 0
+STEP x --> x + 1
+INJ  x == y  ===  (x + 1) == (y + 1)

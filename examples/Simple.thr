@@ -1,0 +1,3 @@
+THEORY Simple
+
+LAW add_left_zero   0 + x == x

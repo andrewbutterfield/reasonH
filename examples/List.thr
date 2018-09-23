@@ -1,5 +1,6 @@
 THEORY List
 
-INDUCTION-BASE List  []
-INDUCTION-STEP List  xs --> (x:xs)
-INDUCTION-INJ  List  x == y && xs == ys   ===  (x:xs) == (y:ys)
+INDUCTION-SCHEME List
+BASE  []
+STEP  xs --> (x:xs)
+INJ   x == y && xs == ys   ===  (x:xs) == (y:ys)
