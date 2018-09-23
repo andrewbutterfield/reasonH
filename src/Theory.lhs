@@ -144,12 +144,12 @@ QED STEP
 \begin{code}
 data Theory
  = THEORY {
-     theoryName :: String
-   , thImports :: [Theory]
-   , hkImports :: [HsModule]
-   , thLaws :: [Law]
-   , thInds :: [InductionSpec]
-   , thTheorems :: [Theorem]
+     theoryName  :: String
+   , thImports   :: [Theory]
+   , hkImports   :: [HsModule]
+   , thLaws      :: [Law]
+   , thIndScheme :: [InductionScheme]
+   , thTheorems  :: [Theorem]
    }
  deriving Show
 \end{code}
@@ -164,7 +164,7 @@ data Law
 \end{code}
 
 \begin{code}
-data InductionSpec
+data InductionScheme
  = IND {
      indType :: String
    , indBase :: HsExp
@@ -229,12 +229,52 @@ data Location
 \end{code}
 \subsection{Parser}
 
-
+We start by adding in an ``empty'' theory as an accumulating
+parameter, and starting the proper parsing.
 \begin{code}
 parseTheory :: ParseMode -> String -> ParseResult Theory
-parseTheory pmode str
- = ParseFailed
-     (SrcLoc (parseFilename pmode) 0 0)
-     "Theory Parser not yet implemented"
--- ParseOk hsmod
+parseTheory pmode str = theoryParser pmode theory0 str
+
+theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
+                 , thLaws = [], thIndScheme = [], thTheorems = [] }
+\end{code}
+
+We start proper parsing by looking for \texttt{THEORY <TheoryName>}
+on the first line:
+\begin{code}
+theoryParser :: ParseMode -> Theory -> String -> ParseResult Theory
+theoryParser pmode theory str
+ | noKey        = ParseFailed (SrcLoc (parseFilename pmode) 1 1)
+                              "Keyword THEORY expected"
+ | null keypars = ParseFailed (SrcLoc (parseFilename pmode) 1 8)
+                              "Theory name expected"
+ | otherwise    = parseImports pmode theory' rest
+ where
+   (noKey,keypars,rest) = parseKey "THEORY" str
+   theory' = theory{ theoryName = head keypars}
+\end{code}
+
+Now we expect zero or more IMPORTS:
+\begin{code}
+parseImports pmode theory str = ParseOk theory
+\end{code}
+
+
+
+\newpage
+\subsubsection{``One-Liner'' Parsing}
+
+
+\begin{code}
+parseKey key str
+  | take len str /= key = (True,[],str)
+  | otherwise  =  (False,words firstLn,rest)
+  where
+   len = length key
+   (firstLn,rest) = getFirstLine $ drop len str
+
+getFirstLine "" = ("","")
+getFirstLine str@(c:cs)
+ | c == '\n'  =  ("",str)
+ | otherwise  =  (c:fl,rest) where (fl,rest) = getFirstLine cs
 \end{code}

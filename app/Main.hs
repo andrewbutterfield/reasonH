@@ -38,10 +38,11 @@ hreqConfig
 
 data HReqState
   = HReq { hmod :: Maybe HsModule
+         , hthry :: Maybe Theory
          }
   deriving Show
 
-hreqs0 = HReq Nothing
+hreqs0 = HReq Nothing Nothing
 
 type HReqCmd       =  REPLCmd      HReqState
 type HReqCmdDescr  =  REPLCmdDescr HReqState
@@ -124,5 +125,4 @@ loadTheory (fnroot:_) hreqs
           -> do putStrLn "Theory AST:\n"
                 let aststr = show theory
                 putStrLn aststr
-                putStrLn "loadTheory NYFI"
-                return hreqs
+                return hreqs{ hthry = Just theory }
