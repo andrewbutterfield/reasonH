@@ -46,8 +46,9 @@ An induction-scheme is described by the following four lines:
 INDUCTION-SCHEME <Type>
 BASE <value>
 STEP <var> --> <expr>
-INJ  <br?> <expr>  ===  <expr>
+INJ  <br?> ( <expr> )  ===  ( <expr> )
 \end{verbatim}
+The parentheses in the last line seem to be necessary for now.
 
 \newpage
 
@@ -152,9 +153,10 @@ data Theory
    }
  deriving Show
 
-thImports__ f thry = thry{ thImports = f $ thImports thry }
-hkImports__ f thry = thry{ hkImports = f $ hkImports thry }
-thLaws__    f thry = thry{ thLaws    = f $ thLaws    thry }
+thImports__   f thry = thry{ thImports   = f $ thImports thry }
+hkImports__   f thry = thry{ hkImports   = f $ hkImports thry }
+thLaws__      f thry = thry{ thLaws      = f $ thLaws    thry }
+thIndScheme__ f thry = thry{ thIndScheme = f $ thIndScheme thry }
 \end{code}
 
 \begin{code}
@@ -170,9 +172,9 @@ data Law
 data InductionScheme
  = IND {
      indType :: String
-   , indBase :: HsExp
-   , indStep :: (HsExp, HsExp)
-   , indInj :: (HsExp,HsExp)
+   , indBase :: HsExp             -- base value
+   , indStep :: (String, HsExp)   -- induction var to step expression
+   , indInj :: (HsExp,HsExp)      -- bits equal whole
    }
  deriving Show
 \end{code}
@@ -230,7 +232,15 @@ data Location
  | VALUE HsExp (Maybe Int)
  deriving Show
 \end{code}
+
+
 \subsection{Parser}
+
+Short failure:
+\begin{code}
+pFail pmode lno msg = ParseFailed (SrcLoc (parseFilename pmode) lno 1) msg
+\end{code}
+
 
 We start by adding in an ``empty'' theory as an accumulating
 parameter,
@@ -251,8 +261,7 @@ theoryParser :: ParseMode -> Theory -> [(Int,String)] -> ParseResult Theory
 theoryParser pmode theory []
  = ParseFailed (SrcLoc (parseFilename pmode) 0 0) "Empty file"
 theoryParser pmode theory ((lno,str):lns)
- | not gotKey    =  ParseFailed (SrcLoc (parseFilename pmode) lno 1)
-                                "THEORY <TheoryName> expected"
+ | not gotKey    =  pFail pmode lno "THEORY <TheoryName> expected"
  | otherwise     =  parseRest pmode theory' lns
  where
    (gotKey,keyedName) = parseKeyAndName "THEORY" str
@@ -267,21 +276,20 @@ parseRest pmode theory (ln@(lno,str):lns)
  | gotImpTheory   =  parseRest pmode (thImports__ (++[thryName]) theory) lns
  | gotImpCode     =  parseRest pmode (hkImports__ (++[codeName]) theory) lns
  | gotLaw         =  parseLaw pmode theory lwName lno rest lns
- | otherwise      =  ParseFailed (SrcLoc (parseFilename pmode) lno 1)
-                                   ("Unexpected keywords, etc.\n"++str)
+ | gotInduction   =  parseInduction pmode theory typeName lno lns
+ | otherwise      =  pFail pmode lno ("Unexpected keywords, etc.\n"++str)
  where
    (gotImpTheory, thryName) = parseKeyAndName "IMPORT-THEORY"  str
    (gotImpCode,   codeName) = parseKeyAndName "IMPORT-HASKELL" str
    (gotLaw, lwName, rest)   = parseOneLinerStart "LAW" str
+   (gotInduction, typeName) = parseKeyAndName "INDUCTION-SCHEME" str
 \end{code}
 
 \begin{code}
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
-
       Nothing
-        ->  ParseFailed (SrcLoc (parseFilename pmode) lno 1)
-                                "Law expected"
+        ->  pFail pmode lno "Law expected"
       Just (expr, lns')
         ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
 \end{code}
@@ -290,6 +298,13 @@ parseLaw pmode theory lwName lno rest lns
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
+ where (chunk,restlns) = getChunk lns
+\end{code}
+
+\begin{code}
+parseEquivChunk pmode lno rest lns
+ | emptyLine rest  =  parseEquiv pmode restlns chunk
+ | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
 
@@ -328,11 +343,65 @@ parseExpr pmode restlns chunk@((lno,_):_)
 \end{code}
 
 \begin{code}
+parseInduction pmode theory typeName lno (ln1:ln2:ln3:lns)
+ | not gotBase  =  pFail pmode (lno+1) "missing BASE"
+ | not gotStep  =  pFail pmode (lno+2) "missing STEP"
+ | not gotInj   =  pFail pmode (lno+3) "missing INJ"
+ | otherwise
+     =  case parseEquivChunk pmode (lno+3) ln3rest lns of
+         Nothing
+           ->  pFail pmode lno "Injective law expected"
+         Just ((e1,e2), lns')
+           ->  parseRest pmode
+                         (thIndScheme__ (++[ ind{indInj=(e1,e2)} ]) theory)
+                         lns'
+ where
+   (gotBase,bValue) = parseKeyAndValue pmode "BASE" $ snd ln1
+   (gotStep,sVar,eStep) = parseKeyNameKeyValue pmode "STEP" "-->" $ snd ln2
+   len = length "INJ"
+   (ln3inj,ln3rest) = splitAt len $ snd ln3
+   gotInj = ln3inj == "INJ"
+   ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
+parseInduction pmode theory typeName lno _
+  = pFail pmode lno "Incomplete Induction Schema"
+\end{code}
+
+\begin{code}
 getNakedExpression :: HsModule -> HsExp
 getNakedExpression
  (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ]) = hsexp
-getNakedExpression _ = HsLit (HsInt 42)
+getNakedExpression _ = hs42
+
+hs42 = HsLit (HsInt 42)
+
+getNakedEquivalence :: HsModule -> (HsExp,HsExp)
+getNakedEquivalence
+ (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
+   = case hsexp of
+       (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)  ->  (e1,e2)
+       _ -> error ("bad Naked Equivalence: "++show hsexp)
+getNakedEquivalence _ = (hs42,hs42)
 \end{code}
+
+\begin{code}
+parseEquiv pmode restlns [] = Nothing
+parseEquiv pmode restlns chunk@((lno,_):_)
+  = case parseModuleWithMode pmode (modstrf chunk) of
+      ParseFailed _ _  -> Nothing
+      ParseOk hsmod -> Just (getNakedEquivalence hsmod, restlns)
+  where
+    modstrf [(_,str)]
+      = unlines [ "module NakedExpr where"
+                , "infix 3 ==="
+                , "nakedExpr = "++str ]
+    modstrf chunk
+      = unlines ( [ "module NakedExpr where"
+                  , "infix 3 ==="
+                  , "nakedExpr = " ]
+                  ++ map snd chunk )
+\end{code}
+
+
 
 \newpage
 \subsubsection{``One-Liner'' Parsing}
@@ -346,7 +415,27 @@ We return a boolean that is true if the parse suceeds.
 parseKeyAndName key str
   = case words str of
       [w1,w2] | w1 == key  ->  (True,  w2)
-      _                    ->  (False, error "parseKeyAndName failed!")
+      _                    ->  (False, error ("Expecting '"++key++"' and name"))
+\end{code}
+
+\begin{code}
+parseKeyAndValue pmode key str
+  = case words str of
+      (w1:wrest) | w1 == key
+        -> case parseExpr pmode [] [(0,unwords wrest)] of
+            Nothing -> (False, error ("Bad value: "++ unwords wrest))
+            Just (hsexp,_) ->  (True,  hsexp)
+      _                    ->  (False, error ("Expecting '"++key++"' and value"))
+\end{code}
+
+\begin{code}
+parseKeyNameKeyValue pmode key1 key2 str
+  = case words str of
+      (w1:w2:w3:wrest) | w1 == key1 && w3 == key2
+        -> case parseExpr pmode [] [(0,unwords wrest)] of
+            Nothing -> (False, "", error ("Bad value: "++ unwords wrest))
+            Just (hsexp,_) ->  (True,  w2, hsexp)
+      _                    ->  (False, "", error ("Expecting '"++key2++"' and value"))
 \end{code}
 
 \begin{code}
