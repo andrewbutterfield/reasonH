@@ -379,8 +379,8 @@ getNakedEquivalence
  (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
    = case hsexp of
        (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)  ->  (e1,e2)
-       _ -> error ("bad Naked Equivalence: "++show hsexp)
-getNakedEquivalence _ = (hs42,hs42)
+       _               ->  (hs42,hs42)
+getNakedEquivalence _  =   (hs42,hs42)
 \end{code}
 
 \begin{code}
