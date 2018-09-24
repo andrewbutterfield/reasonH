@@ -54,7 +54,7 @@ The parentheses in the last line seem to be necessary for now.
 
 A theorem has the following top-level structure:
 \begin{verbatim}
-THEOREM <name> <free-var1> ... <freevarN> <br?> <expr> === <expr>
+THEOREM <name>  <br?> <expr>
 STRATEGY <strategy>
 ...
 QED <name>
@@ -147,25 +147,16 @@ data Theory
      theoryName  :: String
    , thImports   :: [String]  -- Theory Names
    , hkImports   :: [String]  -- Haskell Module names
-   , thLaws      :: [Law]
    , thIndScheme :: [InductionScheme]
+   , thLaws      :: [Law]
    , thTheorems  :: [Theorem]
    }
  deriving Show
 
 thImports__   f thry = thry{ thImports   = f $ thImports thry }
 hkImports__   f thry = thry{ hkImports   = f $ hkImports thry }
-thLaws__      f thry = thry{ thLaws      = f $ thLaws    thry }
 thIndScheme__ f thry = thry{ thIndScheme = f $ thIndScheme thry }
-\end{code}
-
-\begin{code}
-data Law
- = LAW {
-     lawName :: String
-   , lawEqn :: HsExp
-   }
- deriving Show
+thLaws__      f thry = thry{ thLaws      = f $ thLaws    thry }
 \end{code}
 
 \begin{code}
@@ -178,6 +169,16 @@ data InductionScheme
    }
  deriving Show
 \end{code}
+
+\begin{code}
+data Law
+ = LAW {
+     lawName :: String
+   , lawEqn :: HsExp
+   }
+ deriving Show
+\end{code}
+
 
 \begin{code}
 data Theorem
@@ -206,6 +207,7 @@ data Strategy
  deriving Show
 \end{code}
 
+\newpage
 \begin{code}
 data Calculation
  = CALC {
@@ -233,7 +235,7 @@ data Location
  deriving Show
 \end{code}
 
-
+\newpage
 \subsection{Parser}
 
 Short failure:
@@ -275,15 +277,19 @@ parseRest pmode theory (ln@(lno,str):lns)
  | emptyLine str  =  parseRest pmode theory lns
  | gotImpTheory   =  parseRest pmode (thImports__ (++[thryName]) theory) lns
  | gotImpCode     =  parseRest pmode (hkImports__ (++[codeName]) theory) lns
- | gotLaw         =  parseLaw pmode theory lwName lno rest lns
- | gotInduction   =  parseInduction pmode theory typeName lno lns
- | otherwise      =  pFail pmode lno ("Unexpected keywords, etc.\n"++str)
+ | gotIndSchema   =  parseIndSchema pmode theory typeName lno lns
+ | gotLaw         =  parseLaw pmode theory lwName lno lrest lns
+ | gotTheorem     =  parseTheorem pmode theory thrmName lno trest lns
+ | otherwise      =  parseRest pmode theory lns
  where
    (gotImpTheory, thryName) = parseKeyAndName "IMPORT-THEORY"  str
    (gotImpCode,   codeName) = parseKeyAndName "IMPORT-HASKELL" str
-   (gotLaw, lwName, rest)   = parseOneLinerStart "LAW" str
-   (gotInduction, typeName) = parseKeyAndName "INDUCTION-SCHEME" str
+   (gotLaw, lwName, lrest)   = parseOneLinerStart "LAW" str
+   (gotIndSchema, typeName) = parseKeyAndName "INDUCTION-SCHEME" str
+   (gotTheorem, thrmName, trest) = parseOneLinerStart "THEOREM" str
 \end{code}
+
+\subsubsection{Parse Laws}
 
 \begin{code}
 parseLaw pmode theory lwName lno rest lns
@@ -292,58 +298,30 @@ parseLaw pmode theory lwName lno rest lns
         ->  pFail pmode lno "Law expected"
       Just (expr, lns')
         ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
-\end{code}
 
-\begin{code}
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
 
+\newpage
+\subsubsection{Parse Theorems}
+
 \begin{code}
-parseEquivChunk pmode lno rest lns
- | emptyLine rest  =  parseEquiv pmode restlns chunk
- | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
- where (chunk,restlns) = getChunk lns
+parseTheorem pmode theory thrmName lno rest lns
+  = case parseExprChunk pmode lno rest lns of
+      Nothing
+        ->  pFail pmode lno "Theorem expected"
+      Just (expr, lns')
+        -- for now, we just treat a theorem as a law and effectively skip proof
+        ->  parseRest pmode (thLaws__ (++[LAW thrmName expr]) theory) lns'
 \end{code}
 
-A chunk is zero or more empty lines,
-followed by one or more non-empty lines,
-followed by at least one empty line,
-or the end of the list of lines.
-\begin{code}
-getChunk []       =  ([],[])
-
-getChunk (ln@(_,str):lns)
- | emptyLine str  =  getChunk       lns
- | otherwise      =  getChunk' [ln] lns
-
-getChunk' snl []  =  (reverse snl, [])
-
-getChunk' snl (ln@(_,str):lns)
- | emptyLine str  =  (reverse snl,lns)
- | otherwise      =  getChunk' (ln:snl) lns
-\end{code}
+\subsubsection{Parse Induction Schemata}
 
 \begin{code}
-parseExpr pmode restlns [] = Nothing
-parseExpr pmode restlns chunk@((lno,_):_)
-  = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ _  -> Nothing
-      ParseOk hsmod -> Just (getNakedExpression hsmod, restlns)
-  where
-    modstrf [(_,str)]
-      = unlines [ "module NakedExpr where"
-                , "nakedExpr = "++str ]
-    modstrf chunk
-      = unlines ( [ "module NakedExpr where"
-                  , "nakedExpr = " ]
-                  ++ map snd chunk )
-\end{code}
-
-\begin{code}
-parseInduction pmode theory typeName lno (ln1:ln2:ln3:lns)
+parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
  | not gotBase  =  pFail pmode (lno+1) "missing BASE"
  | not gotStep  =  pFail pmode (lno+2) "missing STEP"
  | not gotInj   =  pFail pmode (lno+3) "missing INJ"
@@ -362,25 +340,32 @@ parseInduction pmode theory typeName lno (ln1:ln2:ln3:lns)
    (ln3inj,ln3rest) = splitAt len $ snd ln3
    gotInj = ln3inj == "INJ"
    ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
-parseInduction pmode theory typeName lno _
+parseIndSchema pmode theory typeName lno _
   = pFail pmode lno "Incomplete Induction Schema"
+
+parseEquivChunk pmode lno rest lns
+ | emptyLine rest  =  parseEquiv pmode restlns chunk
+ | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
+ where (chunk,restlns) = getChunk lns
 \end{code}
 
+\newpage
+\subsubsection{Parsing Expressions and Equivalences}
+
 \begin{code}
-getNakedExpression :: HsModule -> HsExp
-getNakedExpression
- (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ]) = hsexp
-getNakedExpression _ = hs42
-
-hs42 = HsLit (HsInt 42)
-
-getNakedEquivalence :: HsModule -> (HsExp,HsExp)
-getNakedEquivalence
- (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
-   = case hsexp of
-       (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)  ->  (e1,e2)
-       _               ->  (hs42,hs42)
-getNakedEquivalence _  =   (hs42,hs42)
+parseExpr pmode restlns [] = Nothing
+parseExpr pmode restlns chunk@((lno,_):_)
+  = case parseModuleWithMode pmode (modstrf chunk) of
+      ParseFailed _ _  -> Nothing
+      ParseOk hsmod -> Just (getNakedExpression hsmod, restlns)
+  where
+    modstrf [(_,str)]
+      = unlines [ "module NakedExpr where"
+                , "nakedExpr = "++str ]
+    modstrf chunk
+      = unlines ( [ "module NakedExpr where"
+                  , "nakedExpr = " ]
+                  ++ map snd chunk )
 \end{code}
 
 \begin{code}
@@ -399,6 +384,30 @@ parseEquiv pmode restlns chunk@((lno,_):_)
                   , "infix 3 ==="
                   , "nakedExpr = " ]
                   ++ map snd chunk )
+\end{code}
+
+\subsubsection{Extracting Expressions and Equivalences}
+
+\begin{code}
+getNakedExpression :: HsModule -> HsExp
+getNakedExpression
+ (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ]) = hsexp
+getNakedExpression _ = hs42
+
+hs42 = HsLit (HsInt 42)
+\end{code}
+
+
+
+
+\begin{code}
+getNakedEquivalence :: HsModule -> (HsExp,HsExp)
+getNakedEquivalence
+ (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
+   = case hsexp of
+       (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)  ->  (e1,e2)
+       _               ->  (hs42,hs42)
+getNakedEquivalence _  =   (hs42,hs42)
 \end{code}
 
 
@@ -445,4 +454,25 @@ parseOneLinerStart key str
       _                         ->  ( False
                                     , error "parseOneLinerStart failed!"
                                     , str)
+\end{code}
+
+\newpage
+\subsection{Chunk Parser}
+
+A chunk is zero or more empty lines,
+followed by one or more non-empty lines,
+followed by at least one empty line,
+or the end of the list of lines.
+\begin{code}
+getChunk []       =  ([],[])
+
+getChunk (ln@(_,str):lns)
+ | emptyLine str  =  getChunk       lns
+ | otherwise      =  getChunk' [ln] lns
+
+getChunk' snl []  =  (reverse snl, [])
+
+getChunk' snl (ln@(_,str):lns)
+ | emptyLine str  =  (reverse snl,lns)
+ | otherwise      =  getChunk' (ln:snl) lns
 \end{code}
