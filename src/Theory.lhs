@@ -21,18 +21,24 @@ import Utilities
 
 Typically a keyword at the start of a line introduces something.
 We start with \texttt{THEORY} and zero or more imports:
-\begin{verbatim}
-THEORY <TheoryName>
-IMPORT-THEORY <Name>
-IMPORT-HASKELL <Name>
-\end{verbatim}
+\def\TOPSYNTAX{\texttt{
+\\THEORY <TheoryName>
+\\IMPORT-THEORY <Name>
+\\IMPORT-HASKELL <Name>
+}}
+
+\TOPSYNTAX
+
 These are followed by zero or more entries
 that describe laws, induction schemes and theorems.
 
 Laws are described by the following ``one-liner'' construct:
-\begin{verbatim}
-LAW <name> <br?> <expr>
-\end{verbatim}
+\def\LAWSYNTAX{\texttt{
+\\LAW <name> <br?> <expr>
+}}
+
+\LAWSYNTAX
+
 Here, \verb"<br?>" means that the following part
 is either entirely on this line,
 or else occupies a number of subsequent lines.
@@ -42,34 +48,57 @@ The following part itself must
 not have blank lines embedded in it.
 
 An induction-scheme is described by the following four lines:
-\begin{verbatim}
-INDUCTION-SCHEME <Type>
-BASE <value>
-STEP <var> --> <expr>
-INJ  <br?> ( <expr> )  ===  ( <expr> )
-\end{verbatim}
+\def\INDSCHEMASYNTAX{\texttt{
+\\INDUCTION-SCHEME <Type>
+\\BASE <value>
+\\STEP <var> --> <expr>
+\\INJ  <br?> ( <expr> )  ===  ( <expr> )
+}}
+
+\INDSCHEMASYNTAX
+
 The parentheses in the last line seem to be necessary for now.
 
 \newpage
 
 A theorem has the following top-level structure:
-\begin{verbatim}
-THEOREM <name>  <br?> <expr>
-STRATEGY <strategy>
-...
-QED <name>
-\end{verbatim}
+\def\THEOREMSYNTAX{\texttt{
+\\THEOREM <name>  <br?> <expr>
+\\STRATEGY <strategy>
+\\  ...
+\\QED <name>
+}}
+
+\THEOREMSYNTAX
 
 Strategies include:
-\begin{verbatim}
-reduce-all
-reduce-lhs
-reduce-rhs
-reduce-both
-induction <type1> <ind-var1> .. <typeN> <ind-varN>
-\end{verbatim}
+\def\STRATEGIES{\texttt{
+\\reduce-all
+\\reduce-lhs
+\\reduce-rhs
+\\reduce-both
+}}
+\def\DOINDUCTION{\texttt{
+\\induction <type1> <ind-var1> .. <typeN> <ind-varN>
+}}
+\def\SDOINDUCTION{\texttt{
+\\STRATEGY induction <type1> <ind-var1> .. <typeN> <ind-varN>
+}}
+
+\STRATEGIES
+\DOINDUCTION
 
 The choice of strategy will then determine the resulting structure:
+\def\INDUCTIONSYNTAX{\texttt{
+\\BASE <var1> = <val1> .. <varN> = <valN> <br!> <expr>
+\\<one of the other four strategies>
+\\QED BASE
+\\STEP <var1> --> <expr1> .. <varN> --> <exprN>
+\\ASSUME <br?> <expr>
+\\SHOW <br?> <expr>
+\\<one of the other four strategies>
+\\QED STEP
+}}
 \begin{description}
   \item [reduce-all]
     \begin{verbatim}
@@ -84,37 +113,31 @@ The choice of strategy will then determine the resulting structure:
       <calculation>
     \end{verbatim}
   \item [reduce-both]~\\
-    \begin{verbatim}
-LHS
-<calculation>
-RHS
-<calculation>
-    \end{verbatim}
+\def\REDBOTHSYNTAX{\texttt{
+\\LHS
+\\<calculation>
+\\RHS
+\\<calculation>
+}}
+   \REDBOTHSYNTAX
   \item [induction]~\\
-    \begin{verbatim}
-BASE <var1> = <val1> .. <varN> = <valN> <br!> <expr>
-<one of the four strategies above>
-QED BASE
-STEP <var1> --> <expr1> .. <varN> --> <exprN>
-ASSUME <br?> <expr>
-SHOW <br?> <expr>
-<one of the four strategies above>
-QED STEP
-    \end{verbatim}
-    Here, \verb"<br!>" is similar to \verb"<br?>",
+    \INDUCTIONSYNTAX
+    \\Here, \verb"<br!>" is similar to \verb"<br?>",
     except that a line break at this point is mandatory.
 \end{description}
 
 A calculation is a sequence of formul\ae\ seperated by justification lines,
 which always start with an equal sign. Blank lines are allowed
 around justification lines.
-\begin{verbatim}
-<expr1>
- = <justification1>
- ...
- = <justificationN>
-<exprN+1>
-\end{verbatim}
+\def\CALCSYNTAX{\texttt{
+\\<expr1>
+\\ = <justification1>
+\\ ...
+\\ = <justificationN>
+\\<exprN+1>
+}}
+
+\CALCSYNTAX
 
 A justification is one of the following,
 where both direction and location are optional.
@@ -141,14 +164,15 @@ Directions: \verb"l2r" and \verb"r2l"
 \newpage
 \subsection{Datatypes}
 
+\TOPSYNTAX \dots
 \begin{code}
 data Theory
  = THEORY {
      theoryName  :: String
    , thImports   :: [String]  -- Theory Names
    , hkImports   :: [String]  -- Haskell Module names
-   , thIndScheme :: [InductionScheme]
    , thLaws      :: [Law]
+   , thIndScheme :: [InductionScheme]
    , thTheorems  :: [Theorem]
    }
  deriving Show
@@ -159,6 +183,17 @@ thIndScheme__ f thry = thry{ thIndScheme = f $ thIndScheme thry }
 thLaws__      f thry = thry{ thLaws      = f $ thLaws    thry }
 \end{code}
 
+\LAWSYNTAX
+\begin{code}
+data Law
+ = LAW {
+     lawName :: String
+   , lawEqn :: HsExp
+   }
+ deriving Show
+\end{code}
+
+\INDSCHEMASYNTAX
 \begin{code}
 data InductionScheme
  = IND {
@@ -170,16 +205,7 @@ data InductionScheme
  deriving Show
 \end{code}
 
-\begin{code}
-data Law
- = LAW {
-     lawName :: String
-   , lawEqn :: HsExp
-   }
- deriving Show
-\end{code}
-
-
+\THEOREMSYNTAX
 \begin{code}
 data Theorem
  = THEOREM {
@@ -189,12 +215,17 @@ data Theorem
  deriving Show
 \end{code}
 
+\STRATEGIES
 \begin{code}
 data Strategy
  = ReduceAll Calculation
  | ReduceLHS Calculation
  | ReduceRHS Calculation
  | ReduceBoth Calculation Calculation
+\end{code}
+\SDOINDUCTION
+\INDUCTIONSYNTAX
+\begin{code}
  | Induction {
      iVars :: [(String,String)] -- type var
    , baseVals :: [(String,HsExp)] -- var = value
@@ -208,6 +239,7 @@ data Strategy
 \end{code}
 
 \newpage
+\CALCSYNTAX
 \begin{code}
 data Calculation
  = CALC {
@@ -255,7 +287,6 @@ parseTheory pmode str = theoryParser pmode theory0 $ zip [1..] $ lines str
 theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
                  , thLaws = [], thIndScheme = [], thTheorems = [] }
 \end{code}
-
 We start proper parsing by looking for \texttt{THEORY <TheoryName>}
 on the first line:
 \begin{code}
@@ -291,6 +322,7 @@ parseRest pmode theory (ln@(lno,str):lns)
 
 \subsubsection{Parse Laws}
 
+\LAWSYNTAX
 \begin{code}
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
@@ -305,21 +337,9 @@ parseExprChunk pmode lno rest lns
  where (chunk,restlns) = getChunk lns
 \end{code}
 
-\newpage
-\subsubsection{Parse Theorems}
-
-\begin{code}
-parseTheorem pmode theory thrmName lno rest lns
-  = case parseExprChunk pmode lno rest lns of
-      Nothing
-        ->  pFail pmode lno "Theorem expected"
-      Just (expr, lns')
-        -- for now, we just treat a theorem as a law and effectively skip proof
-        ->  parseRest pmode (thLaws__ (++[LAW thrmName expr]) theory) lns'
-\end{code}
-
 \subsubsection{Parse Induction Schemata}
 
+\INDSCHEMASYNTAX
 \begin{code}
 parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
  | not gotBase  =  pFail pmode (lno+1) "missing BASE"
@@ -348,6 +368,30 @@ parseEquivChunk pmode lno rest lns
  | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
+
+
+\newpage
+\subsubsection{Parse Theorems}
+
+\THEOREMSYNTAX
+\begin{code}
+parseTheorem pmode theory thrmName lno rest lns
+  = case parseExprChunk pmode lno rest lns of
+      Nothing
+        ->  pFail pmode lno "Theorem expected"
+      Just (goal, lns')
+        ->  parseProof pmode theory thrmName goal lns'
+\end{code}
+
+\STRATEGIES
+\begin{code}
+parseProof pmode theory thrmName goal lns
+  -- for now, we just treat a theorem as a law and effectively skip proof
+  = parseRest pmode (thLaws__ (++[LAW thrmName goal]) theory) lns
+\end{code}
+\SDOINDUCTION
+
+\CALCSYNTAX
 
 \newpage
 \subsubsection{Parsing Expressions and Equivalences}
