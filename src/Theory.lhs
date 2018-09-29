@@ -73,16 +73,16 @@ A theorem has the following top-level structure:
 
 Strategies include:
 \def\STRATEGIES{\texttt{
-\\reduce-all
-\\reduce-lhs
-\\reduce-rhs
-\\reduce-both
+\\ReduceAll
+\\ReduceLHS
+\\ReduceRHS
+\\ReduceBoth
 }}
 \def\DOINDUCTION{\texttt{
-\\induction <type1> <ind-var1> .. <typeN> <ind-varN>
+\\Induction <type1> <ind-var1> .. <typeN> <ind-varN>
 }}
 \def\SDOINDUCTION{\texttt{
-\\STRATEGY induction <type1> <ind-var1> .. <typeN> <ind-varN>
+\\STRATEGY Induction <type1> <ind-var1> .. <typeN> <ind-varN>
 }}
 
 \STRATEGIES
@@ -100,19 +100,19 @@ The choice of strategy will then determine the resulting structure:
 \\QED STEP
 }}
 \begin{description}
-  \item [reduce-all]
+  \item [ReduceAll]
     \begin{verbatim}
       <calculation>
     \end{verbatim}
-  \item [reduce-lhs]
+  \item [ReduceLHS]
     \begin{verbatim}
       <calculation>
     \end{verbatim}
-  \item [reduce-rhs]
+  \item [ReduceRHS]
     \begin{verbatim}
       <calculation>
     \end{verbatim}
-  \item [reduce-both]~\\
+  \item [ReduceBoth]~\\
 \def\REDBOTHSYNTAX{\texttt{
 \\LHS
 \\<calculation>
@@ -120,7 +120,7 @@ The choice of strategy will then determine the resulting structure:
 \\<calculation>
 }}
    \REDBOTHSYNTAX
-  \item [induction]~\\
+  \item [Induction]~\\
     \INDUCTIONSYNTAX
     \\Here, \verb"<br!>" is similar to \verb"<br?>",
     except that a line break at this point is mandatory.
@@ -396,8 +396,16 @@ parseProof pmode theory thrmName goal (ln:lns)
 \end{code}
 
 \begin{code}
-parseRedStrat ln = (False,"parseRedStrateg NYI")
+parseRedStrat str
+  | stratSpec == ["STRATEGY","ReduceAll"]   =  (True,ReduceAll  calc42)
+  | stratSpec == ["STRATEGY","ReduceLHS"]   =  (True,ReduceLHS  calc42)
+  | stratSpec == ["STRATEGY","ReduceRHS"]   =  (True,ReduceRHS  calc42)
+  | stratSpec == ["STRATEGY","ReduceBoth"]  =  (True,ReduceBoth calc42 calc42)
+  | otherwise  =  (False,error "parseRedStrateg NYI")
+  where stratSpec = words str
 parseIndStrat ln = (False,"parseIndStrateg NYI")
+
+calc42 = CALC hs42 []
 \end{code}
 
 \SDOINDUCTION
