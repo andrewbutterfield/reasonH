@@ -65,7 +65,7 @@ A theorem has the following top-level structure:
 \def\THEOREMSYNTAX{\texttt{
 \\THEOREM <name>  <br?> <expr>
 \\STRATEGY <strategy>
-\\  ...
+\\  <strategy-body>
 \\QED <name>
 }}
 
@@ -268,7 +268,7 @@ data Location
 \end{code}
 
 \newpage
-\subsection{Parser}
+\subsection{Parser Top-Level}
 
 Short failure:
 \begin{code}
@@ -320,7 +320,7 @@ parseRest pmode theory (ln@(lno,str):lns)
    (gotTheorem, thrmName, trest) = parseOneLinerStart "THEOREM" str
 \end{code}
 
-\subsubsection{Parse Laws}
+\subsection{Parse Laws}
 
 \LAWSYNTAX
 \begin{code}
@@ -337,7 +337,7 @@ parseExprChunk pmode lno rest lns
  where (chunk,restlns) = getChunk lns
 \end{code}
 
-\subsubsection{Parse Induction Schemata}
+\subsection{Parse Induction Schemata}
 
 \INDSCHEMASYNTAX
 \begin{code}
@@ -371,7 +371,7 @@ parseEquivChunk pmode lno rest lns
 
 
 \newpage
-\subsubsection{Parse Theorems}
+\subsection{Parse Theorems}
 
 \THEOREMSYNTAX
 \begin{code}
@@ -385,16 +385,27 @@ parseTheorem pmode theory thrmName lno rest lns
 
 \STRATEGIES
 \begin{code}
-parseProof pmode theory thrmName goal lns
-  -- for now, we just treat a theorem as a law and effectively skip proof
-  = parseRest pmode (thLaws__ (++[LAW thrmName goal]) theory) lns
+parseProof pmode theory thrmName goal [] = pFail pmode maxBound "missing proof"
+parseProof pmode theory thrmName goal (ln:lns)
+  | gotReduce     =  pFail pmode (fst ln) "parseReduce NYI"
+  | gotInduction  =  pFail pmode (fst ln) "parseInduction NYI"
+  | otherwise     =  pFail pmode (fst ln) "STRATEGY <strategy> expected."
+  where
+    (gotReduce,rstrat) = parseRedStrat $ snd ln
+    (gotInduction,istrat) = parseIndStrat $ snd ln
 \end{code}
+
+\begin{code}
+parseRedStrat ln = (False,"parseRedStrateg NYI")
+parseIndStrat ln = (False,"parseIndStrateg NYI")
+\end{code}
+
 \SDOINDUCTION
 
 \CALCSYNTAX
 
 \newpage
-\subsubsection{Parsing Expressions and Equivalences}
+\subsection{Parsing Expressions and Equivalences}
 
 \begin{code}
 parseExpr pmode restlns [] = Nothing
@@ -430,7 +441,7 @@ parseEquiv pmode restlns chunk@((lno,_):_)
                   ++ map snd chunk )
 \end{code}
 
-\subsubsection{Extracting Expressions and Equivalences}
+\subsection{Extracting Expressions and Equivalences}
 
 \begin{code}
 getNakedExpression :: HsModule -> HsExp
@@ -457,7 +468,7 @@ getNakedEquivalence _  =   (hs42,hs42)
 
 
 \newpage
-\subsubsection{``One-Liner'' Parsing}
+\subsection{``One-Liner'' Parsing}
 
 \begin{code}
 emptyLine = all isSpace
