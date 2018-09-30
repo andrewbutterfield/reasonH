@@ -72,14 +72,19 @@ A theorem has the following top-level structure:
 \THEOREMSYNTAX
 
 Strategies include:
+\def\ReduceAll{ReduceAll}
+\def\ReduceLHS{ReduceLHS}
+\def\ReduceRHS{ReduceRHS}
+\def\ReduceBoth{ReduceBoth}
 \def\STRATEGIES{\texttt{
-\\ReduceAll
-\\ReduceLHS
-\\ReduceRHS
-\\ReduceBoth
+\\\ReduceAll
+\\\ReduceLHS
+\\\ReduceRHS
+\\\ReduceBoth
 }}
+\def\Induction{Induction}
 \def\DOINDUCTION{\texttt{
-\\Induction <type1> <ind-var1> .. <typeN> <ind-varN>
+\\\Induction <type1> <ind-var1> .. <typeN> <ind-varN>
 }}
 \def\SDOINDUCTION{\texttt{
 \\STRATEGY Induction <type1> <ind-var1> .. <typeN> <ind-varN>
@@ -99,6 +104,12 @@ The choice of strategy will then determine the resulting structure:
 \\<one of the other four strategies>
 \\QED STEP
 }}
+\def\REDBOTHSYNTAX{\texttt{
+\\LHS
+\\<calculation>
+\\RHS
+\\<calculation>
+}}
 \begin{description}
   \item [ReduceAll]
     \begin{verbatim}
@@ -113,12 +124,6 @@ The choice of strategy will then determine the resulting structure:
       <calculation>
     \end{verbatim}
   \item [ReduceBoth]~\\
-\def\REDBOTHSYNTAX{\texttt{
-\\LHS
-\\<calculation>
-\\RHS
-\\<calculation>
-}}
    \REDBOTHSYNTAX
   \item [Induction]~\\
     \INDUCTIONSYNTAX
@@ -381,13 +386,10 @@ parseTheorem pmode theory thrmName lno rest lns
         ->  pFail pmode lno "Theorem expected"
       Just (goal, lns')
         ->  parseProof pmode theory thrmName goal lns'
-\end{code}
 
-\STRATEGIES
-\begin{code}
 parseProof pmode theory thrmName goal [] = pFail pmode maxBound "missing proof"
 parseProof pmode theory thrmName goal (ln:lns)
-  | gotReduce     =  pFail pmode (fst ln) "parseReduce NYI"
+  | gotReduce     =  parseReduction pmode rstrat lns
   | gotInduction  =  pFail pmode (fst ln) "parseInduction NYI"
   | otherwise     =  pFail pmode (fst ln) "STRATEGY <strategy> expected."
   where
@@ -395,22 +397,55 @@ parseProof pmode theory thrmName goal (ln:lns)
     (gotInduction,istrat) = parseIndStrat $ snd ln
 \end{code}
 
+\STRATEGIES
 \begin{code}
 parseRedStrat str
-  | stratSpec == ["STRATEGY","ReduceAll"]   =  (True,ReduceAll  calc42)
-  | stratSpec == ["STRATEGY","ReduceLHS"]   =  (True,ReduceLHS  calc42)
-  | stratSpec == ["STRATEGY","ReduceRHS"]   =  (True,ReduceRHS  calc42)
-  | stratSpec == ["STRATEGY","ReduceBoth"]  =  (True,ReduceBoth calc42 calc42)
+  | stratSpec == ["STRATEGY","ReduceAll"]   =  (True,ReduceAll  udefc)
+  | stratSpec == ["STRATEGY","ReduceLHS"]   =  (True,ReduceLHS  udefc)
+  | stratSpec == ["STRATEGY","ReduceRHS"]   =  (True,ReduceRHS  udefc)
+  | stratSpec == ["STRATEGY","ReduceBoth"]  =  (True,ReduceBoth udefc udefc)
   | otherwise  =  (False,error "parseRedStrateg NYI")
-  where stratSpec = words str
-parseIndStrat ln = (False,"parseIndStrateg NYI")
-
-calc42 = CALC hs42 []
+  where
+    stratSpec = words str
+    udefc = error "undefined reduce calculation"
 \end{code}
 
+\texttt{
+\\\ReduceBoth
+\REDBOTHSYNTAX
+}
+\begin{code}
+parseReduction pmode (ReduceBoth _ _) lns
+ = pFail pmode 0 "parseReduction ReduceBoth NYI"
+\end{code}
+
+\texttt{
+\\\ReduceAll | \ReduceLHS | \ReduceRHS
+\\<Calculation>
+}
+\begin{code}
+parseReduction pmode (ReduceAll _) lns  =  parseReduction' pmode ReduceAll lns
+parseReduction pmode (ReduceLHS _) lns  =  parseReduction' pmode ReduceLHS lns
+parseReduction pmode (ReduceRHS _) lns  =  parseReduction' pmode ReduceRHS lns
+
+parseReduction' pmode reduce lns
+ = case parseCalculation pmode lns of
+     ParseFailed (SrcLoc fnm lnno colno) msg
+       -> error ("parseReduction' failed: "++msg)
+     ParseOk calc -> error "parseReduction' NYFI"
+\end{code}
+
+
 \SDOINDUCTION
+\begin{code}
+parseIndStrat ln = (False,"parseIndStrateg NYI")
+\end{code}
+
 
 \CALCSYNTAX
+\begin{code}
+parseCalculation pmode lns = pFail pmode 0 "parseCalculation NYI"
+\end{code}
 
 \newpage
 \subsection{Parsing Expressions and Equivalences}

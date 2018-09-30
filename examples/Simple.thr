@@ -1,5 +1,22 @@
 THEORY Simple
 
-LAW add_assoc
+IMPORT-THEORY Arithmetic
+IMPORT-THEORY List
 
-                x + (y + z) == (x + y) + z
+THEOREM len3
+
+       length (10:20:30:[]) === 3
+
+STRATEGY ReduceLHS
+
+length (10:20:30:[])
+ = defn.2 @ length 1
+1 + length (20:30:[])
+ = defn.2 @ length 1
+1 + 1 + length (30:[])
+ = defn.2 @ length 1
+1 + 1 + 1 + length []
+ = defn.1 @ length 1
+1 + 1 + 1 + 0
+ = Arithmetic
+3
