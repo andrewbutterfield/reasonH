@@ -275,9 +275,16 @@ data Location
 \newpage
 \subsection{Parser Top-Level}
 
-Short failure:
+A polymorphic, monadic parser type:
 \begin{code}
-pFail pmode lno msg = ParseFailed (SrcLoc (parseFilename pmode) lno 1) msg
+type Lines = [(Int,String)]
+type Parser m a  = Lines -> m (a,Lines)
+\end{code}
+A \texttt{SrcLoc}-based monadic failure:
+\begin{code}
+pFail :: Monad m => ParseMode -> Int -> Int -> String -> m a
+pFail pmode lno colno msg
+  = fail (parseFilename pmode ++ ':':show lno++ ":"++show colno++" "++msg)
 \end{code}
 
 
@@ -287,7 +294,10 @@ breaking input into numbered lines
 and starting the proper parsing.
 \begin{code}
 parseTheory :: ParseMode -> String -> ParseResult Theory
-parseTheory pmode str = theoryParser pmode theory0 $ zip [1..] $ lines str
+parseTheory pmode str
+  = case theoryParser pmode theory0 $ zip [1..] $ lines str of
+      Left msg  ->  ParseFailed (SrcLoc (parseFilename pmode) 1 1) msg
+      Right (thry,_) -> ParseOk thry
 
 theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
                  , thLaws = [], thIndScheme = [], thTheorems = [] }
@@ -295,11 +305,11 @@ theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
 We start proper parsing by looking for \texttt{THEORY <TheoryName>}
 on the first line:
 \begin{code}
-theoryParser :: ParseMode -> Theory -> [(Int,String)] -> ParseResult Theory
+theoryParser :: Monad m => ParseMode -> Theory -> Parser m Theory
 theoryParser pmode theory []
- = ParseFailed (SrcLoc (parseFilename pmode) 0 0) "Empty file"
+ = fail "Empty file"
 theoryParser pmode theory ((lno,str):lns)
- | not gotKey    =  pFail pmode lno "THEORY <TheoryName> expected"
+ | not gotKey    =  fail "THEORY <TheoryName> expected"
  | otherwise     =  parseRest pmode theory' lns
  where
    (gotKey,keyedName) = parseKeyAndName "THEORY" str
@@ -308,7 +318,8 @@ theoryParser pmode theory ((lno,str):lns)
 
 
 \begin{code}
-parseRest pmode theory [] = ParseOk theory
+parseRest :: Monad m => ParseMode -> Theory -> Parser m Theory
+parseRest pmode theory [] = return (theory, [])
 parseRest pmode theory (ln@(lno,str):lns)
  | emptyLine str  =  parseRest pmode theory lns
  | gotImpTheory   =  parseRest pmode (thImports__ (++[thryName]) theory) lns
@@ -332,7 +343,7 @@ parseRest pmode theory (ln@(lno,str):lns)
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
       Nothing
-        ->  pFail pmode lno "Law expected"
+        ->  pFail pmode lno 1 "Law expected"
       Just (expr, lns')
         ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
 
@@ -347,13 +358,13 @@ parseExprChunk pmode lno rest lns
 \INDSCHEMASYNTAX
 \begin{code}
 parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
- | not gotBase  =  pFail pmode (lno+1) "missing BASE"
- | not gotStep  =  pFail pmode (lno+2) "missing STEP"
- | not gotInj   =  pFail pmode (lno+3) "missing INJ"
+ | not gotBase  =  pFail pmode (lno+1) 1 "missing BASE"
+ | not gotStep  =  pFail pmode (lno+2) 1 "missing STEP"
+ | not gotInj   =  pFail pmode (lno+3) 1 "missing INJ"
  | otherwise
      =  case parseEquivChunk pmode (lno+3) ln3rest lns of
          Nothing
-           ->  pFail pmode lno "Injective law expected"
+           ->  pFail pmode lno 1 "Injective law expected"
          Just ((e1,e2), lns')
            ->  parseRest pmode
                          (thIndScheme__ (++[ ind{indInj=(e1,e2)} ]) theory)
@@ -366,7 +377,7 @@ parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
    gotInj = ln3inj == "INJ"
    ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
 parseIndSchema pmode theory typeName lno _
-  = pFail pmode lno "Incomplete Induction Schema"
+  = pFail pmode lno 0 "Incomplete Induction Schema"
 
 parseEquivChunk pmode lno rest lns
  | emptyLine rest  =  parseEquiv pmode restlns chunk
@@ -383,15 +394,15 @@ parseEquivChunk pmode lno rest lns
 parseTheorem pmode theory thrmName lno rest lns
   = case parseExprChunk pmode lno rest lns of
       Nothing
-        ->  pFail pmode lno "Theorem expected"
+        ->  pFail pmode lno 0 "Theorem expected"
       Just (goal, lns')
         ->  parseProof pmode theory thrmName goal lns'
 
-parseProof pmode theory thrmName goal [] = pFail pmode maxBound "missing proof"
+parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof"
 parseProof pmode theory thrmName goal (ln:lns)
   | gotReduce     =  parseReduction pmode rstrat lns
-  | gotInduction  =  pFail pmode (fst ln) "parseInduction NYI"
-  | otherwise     =  pFail pmode (fst ln) "STRATEGY <strategy> expected."
+  | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
+  | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
     (gotReduce,rstrat) = parseRedStrat $ snd ln
     (gotInduction,istrat) = parseIndStrat $ snd ln
@@ -416,7 +427,7 @@ parseRedStrat str
 }
 \begin{code}
 parseReduction pmode (ReduceBoth _ _) lns
- = pFail pmode 0 "parseReduction ReduceBoth NYI"
+ = pFail pmode 0 0 "parseReduction ReduceBoth NYI"
 \end{code}
 
 \texttt{
@@ -444,7 +455,7 @@ parseIndStrat ln = (False,"parseIndStrateg NYI")
 
 \CALCSYNTAX
 \begin{code}
-parseCalculation pmode lns = pFail pmode 0 "parseCalculation NYI"
+parseCalculation pmode lns = pFail pmode 0 0 "parseCalculation NYI"
 \end{code}
 
 \newpage
