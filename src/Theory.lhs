@@ -308,9 +308,9 @@ on the first line:
 \begin{code}
 theoryParser :: Monad m => ParseMode -> Theory -> Parser m Theory
 theoryParser pmode theory []
- = fail "Empty file"
+ = pFail pmode 0 0 "Empty file"
 theoryParser pmode theory ((lno,str):lns)
- | not gotKey    =  fail "THEORY <TheoryName> expected"
+ | not gotKey    =  pFail pmode lno 1 "THEORY <TheoryName> expected"
  | otherwise     =  parseRest pmode theory' lns
  where
    (gotKey,keyedName) = parseKeyAndName "THEORY" str
@@ -447,10 +447,8 @@ parseReduction pmode (ReduceLHS _) lns  =  parseReduction' pmode ReduceLHS lns
 parseReduction pmode (ReduceRHS _) lns  =  parseReduction' pmode ReduceRHS lns
 
 parseReduction' pmode reduce lns
- = case parseCalculation pmode lns of
-     ParseFailed (SrcLoc fnm lnno colno) msg
-       -> error ("parseReduction' failed: "++msg)
-     ParseOk calc -> error "parseReduction' NYFI"
+ = do (calc, lns') <- parseCalculation pmode lns
+      pFail pmode 0 0 "parseReduction' NYFI"
 \end{code}
 
 
@@ -461,19 +459,39 @@ parseIndStrat ln = (False,"parseIndStrateg NYI")
 
 
 \CALCSYNTAX
+
+This requires multiple ``chunks'' to be parsed.
+Blank lines are separators,
+as are lines beginning with a leading space followed by a single equal sign.
+A calculation is ended by a line starting with ``QED'' or ``RHS''.
 \begin{code}
-parseCalculation pmode lns = pFail pmode 0 0 "parseCalculation NYI"
+parseCalculation :: Monad m => ParseMode -> Parser m Calculation
+parseCalculation pmode lns
+  = do (calcChunks,rest) <- splitLinesBefore ["QED","RHS"] lns
+       pFail pmode 0 0 "parseCalculation NYFI"
+\end{code}
+
+Break line-list at the first use of a designated keyword
+\begin{code}
+splitLinesBefore :: Monad m => [String] -> Parser m Lines
+splitLinesBefore _ [] = return ( [], [] )
+splitLinesBefore keys lns@(ln:lns')
+ | headword ln `elem` keys  =  return ( [], lns )
+ | otherwise = do (before,after) <- splitLinesBefore keys lns'
+                  return ( ln:before, after )
+ where
+   headword (_,str) = case words str of { []  ->  "" ; (w:_) -> w }
 \end{code}
 
 \newpage
 \subsection{Parsing Expressions and Equivalences}
 
 \begin{code}
-parseExpr :: Monad m => ParseMode -> Lines -> Lines -> m (HsExp, Lines)
-parseExpr pmode restlns [] = fail "no expression!"
+parseExpr :: Monad m => ParseMode -> Lines -> Parser m HsExp
+parseExpr pmode restlns [] = pFail pmode 0 0 "no expression!"
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ msg  -> fail msg
+      ParseFailed _ msg  -> pFail pmode lno 1 msg
       ParseOk hsmod -> return (getNakedExpression hsmod, restlns)
   where
     modstrf [(_,str)]
@@ -486,12 +504,11 @@ parseExpr pmode restlns chunk@((lno,_):_)
 \end{code}
 
 \begin{code}
-parseEquiv :: Monad m
-           => ParseMode -> Lines -> Lines -> m ((HsExp, HsExp), Lines)
-parseEquiv pmode restlns [] = fail "no equivalence!"
+parseEquiv :: Monad m => ParseMode -> Lines -> Parser m (HsExp, HsExp)
+parseEquiv pmode restlns [] = pFail pmode 0 0 "no equivalence!"
 parseEquiv pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ msg  -> fail msg
+      ParseFailed _ msg  -> pFail pmode lno 1 msg
       ParseOk hsmod -> return (getNakedEquivalence hsmod, restlns)
   where
     modstrf [(_,str)]
