@@ -296,8 +296,9 @@ and starting the proper parsing.
 parseTheory :: ParseMode -> String -> ParseResult Theory
 parseTheory pmode str
   = case theoryParser pmode theory0 $ zip [1..] $ lines str of
-      Left msg  ->  ParseFailed (SrcLoc (parseFilename pmode) 1 1) msg
-      Right (thry,_) -> ParseOk thry
+      But msgs  ->  ParseFailed (SrcLoc (parseFilename pmode) 1 1)
+                      $ unlines' msgs
+      Yes (thry,_) -> ParseOk thry
 
 theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
                  , thLaws = [], thIndScheme = [], thTheorems = [] }
@@ -340,13 +341,19 @@ parseRest pmode theory (ln@(lno,str):lns)
 
 \LAWSYNTAX
 \begin{code}
+parseLaw :: Monad m
+         => ParseMode -> Theory  -> String -> Int -> String -> Lines
+         -> m (Theory, Lines)
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
-      Nothing
-        ->  pFail pmode lno 1 "Law expected"
-      Just (expr, lns')
+      But msgs
+        ->  pFail pmode lno 1 $ unlines msgs
+      Yes (expr, lns')
         ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
 
+parseExprChunk :: Monad m
+               => ParseMode -> Int -> String -> Lines
+               -> m (HsExp, Lines)
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
@@ -462,11 +469,12 @@ parseCalculation pmode lns = pFail pmode 0 0 "parseCalculation NYI"
 \subsection{Parsing Expressions and Equivalences}
 
 \begin{code}
-parseExpr pmode restlns [] = Nothing
+parseExpr :: Monad m => ParseMode -> Lines -> Lines -> m (HsExp, Lines)
+parseExpr pmode restlns [] = fail "no expression!"
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ _  -> Nothing
-      ParseOk hsmod -> Just (getNakedExpression hsmod, restlns)
+      ParseFailed _ msg  -> fail msg
+      ParseOk hsmod -> return (getNakedExpression hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
@@ -478,11 +486,13 @@ parseExpr pmode restlns chunk@((lno,_):_)
 \end{code}
 
 \begin{code}
-parseEquiv pmode restlns [] = Nothing
+parseEquiv :: Monad m
+           => ParseMode -> Lines -> Lines -> m ((HsExp, HsExp), Lines)
+parseEquiv pmode restlns [] = fail "no equivalence!"
 parseEquiv pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ _  -> Nothing
-      ParseOk hsmod -> Just (getNakedEquivalence hsmod, restlns)
+      ParseFailed _ msg  -> fail msg
+      ParseOk hsmod -> return (getNakedEquivalence hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
