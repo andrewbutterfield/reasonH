@@ -6,3 +6,5 @@ reasonH.cabal
 *.log
 *.synctex.gz
 MAIN.pdf
+*.aux
+*.toc
