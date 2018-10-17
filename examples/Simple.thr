@@ -20,3 +20,5 @@ length (10:20:30:[])
 1 + 1 + 1 + 0
  = Arithmetic
 3
+
+QED

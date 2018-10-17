@@ -275,9 +275,16 @@ data Location
 \newpage
 \subsection{Parser Top-Level}
 
-Short failure:
+A polymorphic, monadic parser type:
 \begin{code}
-pFail pmode lno msg = ParseFailed (SrcLoc (parseFilename pmode) lno 1) msg
+type Lines = [(Int,String)]
+type Parser m a  = Lines -> m (a,Lines)
+\end{code}
+A \texttt{SrcLoc}-based monadic failure:
+\begin{code}
+pFail :: Monad m => ParseMode -> Int -> Int -> String -> m a
+pFail pmode lno colno msg
+  = fail (parseFilename pmode ++ ':':show lno++ ":"++show colno++" "++msg)
 \end{code}
 
 
@@ -287,7 +294,11 @@ breaking input into numbered lines
 and starting the proper parsing.
 \begin{code}
 parseTheory :: ParseMode -> String -> ParseResult Theory
-parseTheory pmode str = theoryParser pmode theory0 $ zip [1..] $ lines str
+parseTheory pmode str
+  = case theoryParser pmode theory0 $ zip [1..] $ lines str of
+      But msgs  ->  ParseFailed (SrcLoc (parseFilename pmode) 1 1)
+                      $ unlines' msgs
+      Yes (thry,_) -> ParseOk thry
 
 theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
                  , thLaws = [], thIndScheme = [], thTheorems = [] }
@@ -295,11 +306,11 @@ theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
 We start proper parsing by looking for \texttt{THEORY <TheoryName>}
 on the first line:
 \begin{code}
-theoryParser :: ParseMode -> Theory -> [(Int,String)] -> ParseResult Theory
+theoryParser :: Monad m => ParseMode -> Theory -> Parser m Theory
 theoryParser pmode theory []
- = ParseFailed (SrcLoc (parseFilename pmode) 0 0) "Empty file"
+ = pFail pmode 0 0 "Empty file"
 theoryParser pmode theory ((lno,str):lns)
- | not gotKey    =  pFail pmode lno "THEORY <TheoryName> expected"
+ | not gotKey    =  pFail pmode lno 1 "THEORY <TheoryName> expected"
  | otherwise     =  parseRest pmode theory' lns
  where
    (gotKey,keyedName) = parseKeyAndName "THEORY" str
@@ -308,7 +319,8 @@ theoryParser pmode theory ((lno,str):lns)
 
 
 \begin{code}
-parseRest pmode theory [] = ParseOk theory
+parseRest :: Monad m => ParseMode -> Theory -> Parser m Theory
+parseRest pmode theory [] = return (theory, [])
 parseRest pmode theory (ln@(lno,str):lns)
  | emptyLine str  =  parseRest pmode theory lns
  | gotImpTheory   =  parseRest pmode (thImports__ (++[thryName]) theory) lns
@@ -329,13 +341,19 @@ parseRest pmode theory (ln@(lno,str):lns)
 
 \LAWSYNTAX
 \begin{code}
+parseLaw :: Monad m
+         => ParseMode -> Theory  -> String -> Int -> String -> Lines
+         -> m (Theory, Lines)
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
-      Nothing
-        ->  pFail pmode lno "Law expected"
-      Just (expr, lns')
+      But msgs
+        ->  pFail pmode lno 1 $ unlines msgs
+      Yes (expr, lns')
         ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
 
+parseExprChunk :: Monad m
+               => ParseMode -> Int -> String -> Lines
+               -> m (HsExp, Lines)
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
@@ -347,13 +365,13 @@ parseExprChunk pmode lno rest lns
 \INDSCHEMASYNTAX
 \begin{code}
 parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
- | not gotBase  =  pFail pmode (lno+1) "missing BASE"
- | not gotStep  =  pFail pmode (lno+2) "missing STEP"
- | not gotInj   =  pFail pmode (lno+3) "missing INJ"
+ | not gotBase  =  pFail pmode (lno+1) 1 "missing BASE"
+ | not gotStep  =  pFail pmode (lno+2) 1 "missing STEP"
+ | not gotInj   =  pFail pmode (lno+3) 1 "missing INJ"
  | otherwise
      =  case parseEquivChunk pmode (lno+3) ln3rest lns of
          Nothing
-           ->  pFail pmode lno "Injective law expected"
+           ->  pFail pmode lno 1 "Injective law expected"
          Just ((e1,e2), lns')
            ->  parseRest pmode
                          (thIndScheme__ (++[ ind{indInj=(e1,e2)} ]) theory)
@@ -366,7 +384,7 @@ parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
    gotInj = ln3inj == "INJ"
    ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
 parseIndSchema pmode theory typeName lno _
-  = pFail pmode lno "Incomplete Induction Schema"
+  = pFail pmode lno 0 "Incomplete Induction Schema"
 
 parseEquivChunk pmode lno rest lns
  | emptyLine rest  =  parseEquiv pmode restlns chunk
@@ -383,15 +401,15 @@ parseEquivChunk pmode lno rest lns
 parseTheorem pmode theory thrmName lno rest lns
   = case parseExprChunk pmode lno rest lns of
       Nothing
-        ->  pFail pmode lno "Theorem expected"
+        ->  pFail pmode lno 0 "Theorem expected"
       Just (goal, lns')
         ->  parseProof pmode theory thrmName goal lns'
 
-parseProof pmode theory thrmName goal [] = pFail pmode maxBound "missing proof"
+parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof"
 parseProof pmode theory thrmName goal (ln:lns)
   | gotReduce     =  parseReduction pmode rstrat lns
-  | gotInduction  =  pFail pmode (fst ln) "parseInduction NYI"
-  | otherwise     =  pFail pmode (fst ln) "STRATEGY <strategy> expected."
+  | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
+  | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
     (gotReduce,rstrat) = parseRedStrat $ snd ln
     (gotInduction,istrat) = parseIndStrat $ snd ln
@@ -416,7 +434,7 @@ parseRedStrat str
 }
 \begin{code}
 parseReduction pmode (ReduceBoth _ _) lns
- = pFail pmode 0 "parseReduction ReduceBoth NYI"
+ = pFail pmode 0 0 "parseReduction ReduceBoth NYI"
 \end{code}
 
 \texttt{
@@ -429,10 +447,8 @@ parseReduction pmode (ReduceLHS _) lns  =  parseReduction' pmode ReduceLHS lns
 parseReduction pmode (ReduceRHS _) lns  =  parseReduction' pmode ReduceRHS lns
 
 parseReduction' pmode reduce lns
- = case parseCalculation pmode lns of
-     ParseFailed (SrcLoc fnm lnno colno) msg
-       -> error ("parseReduction' failed: "++msg)
-     ParseOk calc -> error "parseReduction' NYFI"
+ = do (calc, lns') <- parseCalculation pmode lns
+      pFail pmode 0 0 "parseReduction' NYFI"
 \end{code}
 
 
@@ -443,19 +459,40 @@ parseIndStrat ln = (False,"parseIndStrateg NYI")
 
 
 \CALCSYNTAX
+
+This requires multiple ``chunks'' to be parsed.
+Blank lines are separators,
+as are lines beginning with a leading space followed by a single equal sign.
+A calculation is ended by a line starting with ``QED'' or ``RHS''.
 \begin{code}
-parseCalculation pmode lns = pFail pmode 0 "parseCalculation NYI"
+parseCalculation :: Monad m => ParseMode -> Parser m Calculation
+parseCalculation pmode lns
+  = do (calcChunks,rest) <- splitLinesBefore ["QED","RHS"] lns
+       pFail pmode 0 0 "parseCalculation NYFI"
+\end{code}
+
+Break line-list at the first use of a designated keyword
+\begin{code}
+splitLinesBefore :: Monad m => [String] -> Parser m Lines
+splitLinesBefore _ [] = return ( [], [] )
+splitLinesBefore keys lns@(ln:lns')
+ | headword ln `elem` keys  =  return ( [], lns )
+ | otherwise = do (before,after) <- splitLinesBefore keys lns'
+                  return ( ln:before, after )
+ where
+   headword (_,str) = case words str of { []  ->  "" ; (w:_) -> w }
 \end{code}
 
 \newpage
 \subsection{Parsing Expressions and Equivalences}
 
 \begin{code}
-parseExpr pmode restlns [] = Nothing
+parseExpr :: Monad m => ParseMode -> Lines -> Parser m HsExp
+parseExpr pmode restlns [] = pFail pmode 0 0 "no expression!"
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ _  -> Nothing
-      ParseOk hsmod -> Just (getNakedExpression hsmod, restlns)
+      ParseFailed _ msg  -> pFail pmode lno 1 msg
+      ParseOk hsmod -> return (getNakedExpression hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
@@ -467,11 +504,12 @@ parseExpr pmode restlns chunk@((lno,_):_)
 \end{code}
 
 \begin{code}
-parseEquiv pmode restlns [] = Nothing
+parseEquiv :: Monad m => ParseMode -> Lines -> Parser m (HsExp, HsExp)
+parseEquiv pmode restlns [] = pFail pmode 0 0 "no equivalence!"
 parseEquiv pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
-      ParseFailed _ _  -> Nothing
-      ParseOk hsmod -> Just (getNakedEquivalence hsmod, restlns)
+      ParseFailed _ msg  -> pFail pmode lno 1 msg
+      ParseOk hsmod -> return (getNakedEquivalence hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
