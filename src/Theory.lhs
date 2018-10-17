@@ -277,7 +277,8 @@ data Location
 
 A polymorphic, monadic parser type:
 \begin{code}
-type Lines = [(Int,String)]
+type Line = (Int,String)
+type Lines = [Line]
 type Parser m a  = Lines -> m (a,Lines)
 \end{code}
 A \texttt{SrcLoc}-based monadic failure:
@@ -459,6 +460,9 @@ parseIndStrat ln = (False,"parseIndStrateg NYI")
 
 
 \CALCSYNTAX
+\begin{code}
+type Steps = [(Line,Lines)]
+\end{code}
 
 This requires multiple ``chunks'' to be parsed.
 Blank lines are separators,
@@ -467,20 +471,37 @@ A calculation is ended by a line starting with ``QED'' or ``RHS''.
 \begin{code}
 parseCalculation :: Monad m => ParseMode -> Parser m Calculation
 parseCalculation pmode lns
-  = do (calcChunks,rest) <- splitLinesBefore ["QED","RHS"] lns
+  = do (calcChunks,rest) <- takeLinesBefore ["QED","RHS"] lns
+       ((fstChunk,sepChunks),_) <- splitLinesOn pmode isJustificationLn calcChunks
+       (goalPred,chunks) <- parseExpr pmode [] fstChunk
        pFail pmode 0 0 "parseCalculation NYFI"
 \end{code}
 
-Break line-list at the first use of a designated keyword
+Break line-list at the first use of a designated keyword,
+discarding empty lines along the way
 \begin{code}
-splitLinesBefore :: Monad m => [String] -> Parser m Lines
-splitLinesBefore _ [] = return ( [], [] )
-splitLinesBefore keys lns@(ln:lns')
- | headword ln `elem` keys  =  return ( [], lns )
- | otherwise = do (before,after) <- splitLinesBefore keys lns'
-                  return ( ln:before, after )
- where
-   headword (_,str) = case words str of { []  ->  "" ; (w:_) -> w }
+takeLinesBefore :: Monad m => [String] -> Parser m Lines
+takeLinesBefore _ [] = return ( [], [] )
+takeLinesBefore keys lns@(ln:lns')
+ | null lnwords              =  takeLinesBefore keys lns'
+ | head lnwords `elem` keys  =  return ( [], lns )
+ | otherwise                 =  do (before,after) <- takeLinesBefore keys lns'
+                                   return ( ln:before, after )
+ where lnwords = words $ snd ln
+\end{code}
+
+A justification line has a first word that is an equals-sign (for now).
+\begin{code}
+isJustificationLn :: Line -> Bool
+isJustificationLn (_,str)  =  case words str of
+                                []     ->  False
+                                (w:_)  ->  w `elem` ["="]
+\end{code}
+
+Split into maximal chunks seperated by lines that satisfy \texttt{splitHere}:
+\begin{code}
+splitLinesOn :: Monad m => ParseMode -> (Line -> Bool) -> Parser m (Lines,Steps)
+splitLinesOn pmode splitHere lns = pFail pmode 0 0 "splitLinesOn NYI"
 \end{code}
 
 \newpage
