@@ -501,7 +501,16 @@ isJustificationLn (_,str)  =  case words str of
 Split into maximal chunks seperated by lines that satisfy \texttt{splitHere}:
 \begin{code}
 splitLinesOn :: Monad m => ParseMode -> (Line -> Bool) -> Parser m (Lines,Steps)
-splitLinesOn pmode splitHere lns = pFail pmode 0 0 "splitLinesOn NYI"
+
+-- we expect at least one line before split
+splitLinesOn pmode splitHere [] = pFail pmode 0 0 "nothing to split"
+splitLinesOn pmode splitHere (ln:lns)
+ | splitHere ln  = pFail pmode (fst ln) 0 "splitter at start"
+ | otherwise  =  splitLinesOn' pmode splitHere [ln] lns
+
+-- seen initial chunk, looking for first split
+splitLinesOn' pmode splitHere knuhc lns
+  = pFail pmode 0 0 "splitLinesOn' NYI"
 \end{code}
 
 \newpage
