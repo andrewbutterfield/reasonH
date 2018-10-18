@@ -14,6 +14,10 @@ import Language.Haskell.Pretty
 import Language.Haskell.Syntax
 
 import Utilities
+
+import Debug.Trace
+dbg msg x = trace (msg ++ show x) x
+mdbg msg x = return $! dbg msg x
 \end{code}
 
 
@@ -184,8 +188,9 @@ data Theory
 
 thImports__   f thry = thry{ thImports   = f $ thImports thry }
 hkImports__   f thry = thry{ hkImports   = f $ hkImports thry }
-thIndScheme__ f thry = thry{ thIndScheme = f $ thIndScheme thry }
 thLaws__      f thry = thry{ thLaws      = f $ thLaws    thry }
+thIndScheme__ f thry = thry{ thIndScheme = f $ thIndScheme thry }
+thTheorems__  f thry = thry{ thTheorems  = f $ thTheorems thry }
 \end{code}
 
 \LAWSYNTAX
@@ -243,7 +248,6 @@ data Strategy
  deriving Show
 \end{code}
 
-\newpage
 \CALCSYNTAX
 \begin{code}
 data Calculation
@@ -408,7 +412,9 @@ parseTheorem pmode theory thrmName lno rest lns
 
 parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof"
 parseProof pmode theory thrmName goal (ln:lns)
-  | gotReduce     =  parseReduction pmode rstrat lns
+  | gotReduce     =  do (strat,lns') <- parseReduction pmode rstrat lns
+                        let thry = THEOREM thrmName strat
+                        return ( thTheorems__ (++[thry]) theory, lns' )
   | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
@@ -447,9 +453,17 @@ parseReduction pmode (ReduceAll _) lns  =  parseReduction' pmode ReduceAll lns
 parseReduction pmode (ReduceLHS _) lns  =  parseReduction' pmode ReduceLHS lns
 parseReduction pmode (ReduceRHS _) lns  =  parseReduction' pmode ReduceRHS lns
 
+calcStop = ["QED","RHS"]
+
 parseReduction' pmode reduce lns
  = do (calc, lns') <- parseCalculation pmode lns
-      pFail pmode 0 0 "parseReduction' NYFI"
+      -- expect calcStop
+      completeCalc pmode reduce calc lns'
+
+completeCalc pmode _ _ [] = pFail pmode 0 0 "missing calc end"
+completeCalc pmode reduce calc ((num,str):lns)
+ | trim str `elem` calcStop  =  return (reduce calc,lns)
+ | otherwise = pFail pmode num 0 ("improper calc end: "++str)
 \end{code}
 
 
@@ -471,10 +485,11 @@ A calculation is ended by a line starting with ``QED'' or ``RHS''.
 \begin{code}
 parseCalculation :: Monad m => ParseMode -> Parser m Calculation
 parseCalculation pmode lns
-  = do (calcChunks,rest) <- takeLinesBefore ["QED","RHS"] lns
+  = do (calcChunks,rest) <- takeLinesBefore calcStop lns
        ((fstChunk,sepChunks),_) <- splitLinesOn pmode isJustificationLn calcChunks
-       (goalPred,chunks) <- parseExpr pmode [] fstChunk
-       pFail pmode 0 0 "parseCalculation NYFI"
+       (goalPred,_) <- parseExpr pmode [] fstChunk
+       steps <- parseSteps pmode sepChunks
+       return (CALC goalPred steps, rest)
 \end{code}
 
 Break line-list at the first use of a designated keyword,
@@ -509,9 +524,43 @@ splitLinesOn pmode splitHere (ln:lns)
  | otherwise  =  splitLinesOn' pmode splitHere [ln] lns
 
 -- seen initial chunk, looking for first split
-splitLinesOn' pmode splitHere knuhc lns
-  = pFail pmode 0 0 "splitLinesOn' NYI"
+splitLinesOn' pmode splitHere knuhc []  =  return ((reverse knuhc,[]),[])
+splitLinesOn' pmode splitHere knuhc (ln:lns)
+ | splitHere ln  =  splitLinesOn'' pmode splitHere (reverse knuhc) [] ln [] lns
+ | otherwise  = splitLinesOn' pmode splitHere (ln:knuhc) lns
+
+-- found split
+-- accumulating post-split chunk
+splitLinesOn'' pmode splitHere chunk0 spets split knuhc []
+ | null knuhc  =  pFail pmode (fst split) 0 "ends on split"
+ | otherwise  =  return ( ( chunk0
+                          , reverse ((split, reverse knuhc):spets) )
+                        , [] )
+splitLinesOn'' pmode splitHere chunk0 spets split knuhc (ln:lns)
+ | splitHere ln  =  splitLinesOn'' pmode splitHere
+                                 chunk0 ((split, reverse knuhc):spets) ln [] lns
+ | otherwise  = splitLinesOn'' pmode splitHere chunk0 spets split (ln:knuhc) lns
 \end{code}
+
+Parsing calculation steps:
+\begin{code}
+parseSteps :: Monad m => ParseMode -> Steps -> m [(Justification,HsExp)]
+parseSteps pmode [] = return []
+parseSteps pmode ((justify,chunk):rest)
+  = do just <- parseJustification pmode justify
+       (exp,_) <- parseExpr pmode [] chunk
+       steps <- parseSteps pmode rest
+       return ((just,exp):steps)
+\end{code}
+
+Parsing a justification:
+\begin{code}
+parseJustification :: Monad m => ParseMode -> Line -> m Justification
+parseJustification pmode justify
+ = return $ BECAUSE "n.y.i." Nothing Nothing
+--  = pFail pmode (fst justify) 0 "parseJustification NYI"
+\end{code}
+
 
 \newpage
 \subsection{Parsing Expressions and Equivalences}
