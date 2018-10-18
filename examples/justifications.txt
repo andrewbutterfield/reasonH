@@ -1,0 +1,37 @@
+Justifications in use:
+
+ = defn.1 @ ++ 1
+ = defn.1 @ length 1
+ = add_left_zero l2r @ + 1
+ = defn.2 @ ++ 1
+ = defn.2 @ length 1
+ = add_assoc l2r
+ = ASSUMPTION r2l @ ++ 1
+ = defn.1 @ length 1
+ = Arithmetic
+
+3 components
+
+1. law - name, defn of name, ind. assumption, case assumption
+2. focus - tree descent numbers, ith inorder occurence of name
+3. usage: whole law,left-to-right, right-to-left...
+
+
+
+
+
+Justification has two parts, with the second being optional.
+
+First part identifies the law
+ = defn.n @ nm i
+locate ith use of 'nm', and apply nth clause in its definition
+
+ = lname dir @ nm i
+locate ith use of 'nm', and apply law 'lname' in specified 'dir'
+dir in {l2r,r2l}
+
+= lname dir
+apply law 'lname' in specified 'dir' at top-level
+
+= ASSUMPTION dir @ nm i
+locate ith use of 'nm', and apply inductive hypothesis in specified 'dir'
