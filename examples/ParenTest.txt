@@ -1,0 +1,48 @@
+THEORY {
+  theoryName = "Parentheses"
+, thImports = []
+, hkImports = []
+, thLaws = []
+, thIndScheme = []
+, thTheorems
+  = [ THEOREM {
+        thmName = "test" -- 1+(2+3) === (1+2)+3
+      , strategy = ReduceLHS
+        ( CALC { -- use <a+b> for op-tree,
+                 -- and (e) for explicitly parenthesis e.
+            goal =  -- 1+(2+3)     <1+(<2+3>)
+              HsInfixApp
+                (HsLit (HsInt 1))
+                (HsQVarOp (UnQual (HsSymbol "+")))
+                (HsParen
+                  ( HsInfixApp (HsLit (HsInt 2))
+                               (HsQVarOp (UnQual (HsSymbol "+")))
+                               (HsLit (HsInt 3))
+                  )
+                )
+          , calcs =
+             [ ( BECAUSE {jrel = JEq, law = SMP, usage = Whole, focus = Top}
+               , HsInfixApp -- 1+2+3   as  (1+2)+3  <<1+2>+3>
+                   (HsInfixApp
+                     (HsLit (HsInt 1))
+                     (HsQVarOp (UnQual (HsSymbol "+")))
+                     (HsLit (HsInt 2))
+                   )
+                   (HsQVarOp (UnQual (HsSymbol "+")))
+                   (HsLit (HsInt 3))
+                 )
+             , ( BECAUSE {jrel = JEq, law = SMP, usage = Whole, focus = Top}
+               , HsInfixApp -- (1+2)+3  <(<1+2>)+3>
+                   (HsParen
+                     (HsInfixApp
+                       (HsLit (HsInt 1))
+                       (HsQVarOp (UnQual (HsSymbol "+")))
+                       (HsLit (HsInt 2))
+                     )
+                   )
+                   (HsQVarOp (UnQual (HsSymbol "+")))
+                   (HsLit (HsInt 3))
+               )
+             ]
+         }
+        )}]}

@@ -1,0 +1,16 @@
+THEORY Parentheses
+
+
+THEOREM test
+
+       1+(2+3) === (1+2)+3
+
+STRATEGY ReduceLHS
+
+1+(2+3)
+ = SIMP
+1+2+3
+ = SIMP
+(1+2)+3
+
+QED
