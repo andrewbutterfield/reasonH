@@ -242,22 +242,22 @@ data Calculation
  deriving Show
 \end{code}
 
+\newpage
+Justifications:
+\lstinputlisting[basicstyle=\ttfamily]{doc/justifications.txt}
 \begin{code}
 data Justification
  = BECAUSE {
-     eqnName :: String -- fn definition or law, or keyword
-   , dir :: Maybe Direction
-   , loc :: Maybe Location
+     jrel :: JRel
+   , law :: JLaw
+   , usage :: Usage
+   , focus :: Focus
    }
  deriving Show
-\end{code}
-
-\begin{code}
-data Direction = L2R | R2L deriving (Eq, Show)
-data Location
- = FNNAME String (Maybe Int)
- | VALUE HsExp (Maybe Int)
- deriving Show
+data JRel = JEq deriving (Eq, Show)
+data JLaw = L String | D String Int | IH | CS | SMP deriving (Eq, Show)
+data Usage = Whole | L2R | R2L deriving (Eq, Show)
+data Focus = Top | At String Int deriving (Eq, Show)
 \end{code}
 
 \newpage
@@ -497,6 +497,7 @@ isJustificationLn (_,str)  =  case words str of
                                 (w:_)  ->  w `elem` ["="]
 \end{code}
 
+\newpage
 Split into maximal chunks seperated by lines that satisfy \texttt{splitHere}:
 \begin{code}
 splitLinesOn :: Monad m => ParseMode -> (Line -> Bool) -> Parser m (Lines,Steps)
@@ -537,17 +538,87 @@ parseSteps pmode ((justify,chunk):rest)
        return ((just,exp):steps)
 \end{code}
 
+\newpage
 Parsing a justification.
 
 \lstinputlisting[basicstyle=\ttfamily]{doc/justifications.txt}
 
+Parsing of whole line --- need at least two words
 \begin{code}
 parseJustification :: Monad m => ParseMode -> Line -> m Justification
-parseJustification pmode justify
- = return $ BECAUSE "n.y.i." Nothing Nothing
---  = pFail pmode (fst justify) 0 "parseJustification NYI"
+parseJustification pmode (lno,str)
+ = case words str of
+    (w1:w2:wrest) ->  do jr <- parseJRel w1
+                         parseJustify pmode lno jr wrest w2
+    _ ->  pFail pmode lno 0 "incomplete justification"
+ where
+    parseJRel "="  =  return JEq
+    parseJRel  x   =  pFail pmode lno 1 ("unrecognised relation: "++x)
 \end{code}
 
+Parsing given at least two words, the first of which is OK.
+If we get a succesful parse, we ignore anything leftover.
+\begin{code}
+parseJustify :: Monad m => ParseMode -> Int -> JRel -> [String] -> String
+             -> m Justification
+parseJustify pmode lno jr wrest w2
+ | w2 == "LAW"    = parseLawName pmode lno jr     wrest
+ | w2 == "DEF"    = parseDef     pmode lno jr     wrest
+ | w2 == "INDHYP" = parseUsage   pmode lno jr IH  wrest
+ | w2 == "CASE"   = parseUsage   pmode lno jr CS  wrest
+ | w2 == "SIMP"   = parseUsage   pmode lno jr SMP wrest
+ | otherwise      = pFail        pmode lno  1 ("unrecognised law: "++w2)
+\end{code}
+
+
+Seen a \texttt{LAW}, expecting a \texttt{fname}
+\begin{code}
+parseLawName pmode lno jr []         =  pFail pmode lno 0 "LAW missing name"
+parseLawName pmode lno jr (w:wrest)  =  parseUsage pmode lno jr (L w) wrest
+\end{code}
+
+\newpage
+Seen a \texttt{DEF}, expecting a \texttt{fname[.i]}
+\begin{code}
+parseDef pmode lno jr [] = pFail pmode lno 0 "DEF missing name"
+parseDef pmode lno jr (w:wrest) =  parseUsage pmode lno jr (mkD w) wrest
+
+mkD w -- any error in '.loc' results in value 0
+  | null dotloc      =  D w 0
+  | null loc         =  D nm 0
+  | all isDigit loc  =  D nm $ read loc
+  | otherwise        =  D nm 0
+  where
+    (nm,dotloc) = break (=='.') w
+    loc = tail dotloc
+\end{code}
+
+Seen law, looking for optional usage.
+\begin{code}
+parseUsage pmode lno jr jlaw []
+                     =  return $ BECAUSE jr jlaw (defUsage jlaw) (defFocus jlaw)
+parseUsage pmode lno jr jlaw ws@(w:wrest)
+  | w == "l2r"  =  parseFocus pmode lno jr jlaw L2R              wrest
+  | w == "r2l"  =  parseFocus pmode lno jr jlaw R2L              wrest
+  | otherwise   =  parseFocus pmode lno jr jlaw (defUsage jlaw) ws
+
+defUsage (D _ _)  =  L2R
+defUsage _        =  Whole
+\end{code}
+
+Seen law and possible usage, looking for optional focus.
+\begin{code}
+parseFocus pmode lno jr jlaw u []
+                                 =  return $ BECAUSE jr jlaw u $ defFocus jlaw
+parseFocus pmode lno jr jlaw u [w]
+                                 =  return $ BECAUSE jr jlaw u $ At w 0
+parseFocus pmode lno jr jlaw u (w1:w2:_)
+  | all isDigit w2               =  return $ BECAUSE jr jlaw u $ At w1 $ read w2
+  | otherwise                    =  return $ BECAUSE jr jlaw u $ At w1 0
+
+defFocus (D n _)  =  At n 0
+defFocus _        =  Top
+\end{code}
 
 \newpage
 \subsection{Parsing Expressions and Equivalences}

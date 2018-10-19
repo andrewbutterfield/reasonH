@@ -1,19 +1,22 @@
-law usage focus
+jrel law [usage] [focus]
 
-1. law (mandatory):
-  lawname -- name of law
-  fname.i -- defn of name, identifying clause
-  INDHYP  -- inductive hypothesis
-  CASE    -- case assumption
-  SIMP    -- Arithmetic and boolean simplifier
-2. usage:
-      -- if omitted, whole law
+1. jrel (mandatory):
+ =  -- logical equality
+    -- inequalities such as <, <=, ==>, .. may be supported later
+2. law (mandatory):
+  LAW name    -- name of law
+  DEF name    -- defn of name
+  DEF name.i  -- defn of name, identifying clause
+  INDHYP      -- inductive hypothesis
+  CASE        -- case assumption
+  SIMP        -- Simplifier
+3. usage (optional):
+      -- if omitted for DEF, then l2r
+      -- if omitted otherwise, then whole law
   l2r -- left-to-right (for laws of form lhs = rhs)
   r2l -- right-to-left (for laws of form lhs = rhs)
-3. focus:
-                  -- if omitted, the focus is at top-level
+4. focus (optional):
+                  -- if omitted for DEF, focus is only occurrence of name
+                  -- if omitted for anything else, the focus is at top-level
   @ name          -- the only occurrence of that variable or function name
   @ name i        -- ith in-order occurrence of variable or function name
-  @ op i          -- ith in-order occurrence of operator name
-  @ [i1,i2,..,in] -- tree descent indices
-                  -- from top, take i1 branch, then i2 branch, ...

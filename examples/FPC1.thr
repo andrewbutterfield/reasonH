@@ -19,15 +19,15 @@ STRATEGY reduce-both
 LHS
 
 length ([]++ys)
- = defn.1 @ ++ 1
+ = DEF ++.1
 length ys
 
 RHS
 
 length [] + length ys
- = defn.1 @ length 1
+ = DEF length.1 @ length 1
 0 + length ys
- = add_left_zero l2r @ + 1
+ = LAW add_left_zero l2r
 length ys
 
 QED BASE
@@ -45,17 +45,17 @@ STRATEGY reduce-both
 LHS
 
 length ((x:xs)++ys)
- = defn.2 @ ++ 1
+ = DEF ++.2
 length (x:(xs++ys))
- = defn.2 @ length 1
+ = DEF length.2
 1 + length (xs++ys)
 
 RHS
 
 length (x:xs) ++ length ys
- = defn.2 @ length 1
+ = DEF length.2 @ length 1
 (1 + length xs) ++ length ys
- = add_assoc l2r
+ = LAW add_assoc l2r
 1 + (length xs ++ length ys)
  = INDHYP r2l @ ++ 1
 1 + length (xs++ys)
