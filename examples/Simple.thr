@@ -13,12 +13,12 @@ length (10:20:30:[])
  = defn.2 @ length 1
 1 + length (20:30:[])
  = defn.2 @ length 1
-1 + 1 + length (30:[])
+1 + (1 + length (30:[]))
  = defn.2 @ length 1
-1 + 1 + 1 + length []
+1 + (1 + (1 + length []))
  = defn.1 @ length 1
-1 + 1 + 1 + 0
- = Arithmetic
+1 + (1 + (1 + 0))
+ = SIMP
 3
 
 QED

@@ -148,26 +148,10 @@ around justification lines.
 
 \CALCSYNTAX
 
-A justification is one of the following,
-where both direction and location are optional.
-A missing direction means the whole law matches,
-while an explicit direction means the laws is an equation
-and we have matched one side, to be replaced by the other.
-A missing location means the whole current expression
-is replaced.
-\begin{verbatim}
- <funorlawname> [<direction>] [@ <location>]
- ASSUMPTION <direction>
- ASSUMPTION <direction> @ <location>
-\end{verbatim}
+\newpage
+The justification format is as follows:
+\lstinputlisting[basicstyle=\ttfamily]{doc/justifications.txt}
 
-Locations, identify the function name or value to be replaced
-with a number used to identify which, if there is more than one.
-\begin{verbatim}
-<funnameorvalue>[.<number>]
-\end{verbatim}
-
-Directions: \verb"l2r" and \verb"r2l"
 
 
 \newpage
@@ -261,7 +245,7 @@ data Calculation
 \begin{code}
 data Justification
  = BECAUSE {
-     eqnName :: String -- fn definition or law, or ASSUMPTION
+     eqnName :: String -- fn definition or law, or keyword
    , dir :: Maybe Direction
    , loc :: Maybe Location
    }
@@ -553,7 +537,10 @@ parseSteps pmode ((justify,chunk):rest)
        return ((just,exp):steps)
 \end{code}
 
-Parsing a justification:
+Parsing a justification.
+
+\lstinputlisting[basicstyle=\ttfamily]{doc/justifications.txt}
+
 \begin{code}
 parseJustification :: Monad m => ParseMode -> Line -> m Justification
 parseJustification pmode justify

@@ -1,0 +1,19 @@
+law usage focus
+
+1. law (mandatory):
+  lawname -- name of law
+  fname.i -- defn of name, identifying clause
+  INDHYP  -- inductive hypothesis
+  CASE    -- case assumption
+  SIMP    -- Arithmetic and boolean simplifier
+2. usage:
+      -- if omitted, whole law
+  l2r -- left-to-right (for laws of form lhs = rhs)
+  r2l -- right-to-left (for laws of form lhs = rhs)
+3. focus:
+                  -- if omitted, the focus is at top-level
+  @ name          -- the only occurrence of that variable or function name
+  @ name i        -- ith in-order occurrence of variable or function name
+  @ op i          -- ith in-order occurrence of operator name
+  @ [i1,i2,..,in] -- tree descent indices
+                  -- from top, take i1 branch, then i2 branch, ...
