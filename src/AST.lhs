@@ -178,23 +178,103 @@ Match (App "reverse" [App ":" [Var "x", Var "xs"]])
       []
 \end{haskell}
 
-\texttt{"xxx"} parses as:
+\texttt{"length (\_:xs) = 1 + length xs"} parses as:
 \begin{haskell}
-xxx
+HsMatch (SrcLoc {...})
+  (HsIdent "length")
+  [ HsPParen ( HsPInfixApp HsPWildCard
+                           (Special HsCons) (HsPVar (HsIdent "xs"))
+             )
+  ]
+  ( HsUnGuardedRhs
+      ( HsInfixApp
+          (HsLit (HsInt 1))
+          (HsQVarOp (UnQual (HsSymbol "+")))
+          ( HsApp (HsVar (UnQual (HsIdent "length")))
+                  (HsVar (UnQual (HsIdent "xs")))
+          )
+      )
+  )
+  []
 \end{haskell}
 Suggested form:
 \begin{haskell}
-xxx
+Match (App "length" [App ":" [Var "_", Var "xs"]])
+      (App "+" [LInt 1,App "length" [Var "xs"]])
+      []
 \end{haskell}
 
-\texttt{"xxx"} parses as:
+\newpage
+\texttt{"ins x ys@(y:zs)"}\\
+\texttt{" | x < y      =  x : ys"}\\
+\texttt{" | x > y      =  y : ins x zs"}\\
+\texttt{" | otherwise  =  ys"} parses as:
 \begin{haskell}
-xxx
+HsMatch (SrcLoc {srcFilename = "FPC1.hs", srcLine = 14, srcColumn = 1})
+(HsIdent "ins")
+[ HsPVar (HsIdent "x")
+, HsPAsPat
+    (HsIdent "ys")
+    ( HsPParen
+        ( HsPInfixApp
+            (HsPVar (HsIdent "y"))
+            (Special HsCons)
+            (HsPVar (HsIdent "zs"))
+        )
+    )
+]
+( HsGuardedRhss
+    [ HsGuardedRhs
+        (SrcLoc {srcFilename = "FPC1.hs", srcLine = 15, srcColumn = 2})
+        ( HsInfixApp
+           (HsVar (UnQual (HsIdent "x")))
+           (HsQVarOp (UnQual (HsSymbol "<")))
+           (HsVar (UnQual (HsIdent "y")))
+        )
+        ( HsInfixApp
+            (HsVar (UnQual (HsIdent "x")))
+            (HsQConOp (Special HsCons))
+            (HsVar (UnQual (HsIdent "ys")))
+        )
+    , HsGuardedRhs
+        (SrcLoc {srcFilename = "FPC1.hs", srcLine = 16, srcColumn = 2})
+        ( HsInfixApp
+            (HsVar (UnQual (HsIdent "x")))
+            (HsQVarOp (UnQual (HsSymbol ">")))
+            (HsVar (UnQual (HsIdent "y")))
+        )
+        ( HsInfixApp
+            (HsVar (UnQual (HsIdent "y")))
+            (HsQConOp (Special HsCons))
+            ( HsApp
+                ( HsApp (HsVar (UnQual (HsIdent "ins")))
+                        (HsVar (UnQual (HsIdent "x")))
+                )
+                (HsVar (UnQual (HsIdent "zs")))
+            )
+        )
+    , HsGuardedRhs
+        (SrcLoc {srcFilename = "FPC1.hs", srcLine = 17, srcColumn = 2})
+        (HsVar (UnQual (HsIdent "otherwise")))
+        (HsVar (UnQual (HsIdent "ys")))
+    ])
+[]
 \end{haskell}
+\newpage
 Suggested form:
 \begin{haskell}
-xxx
+Match (App "ins" [Var "x", App "@" [ys,App ":" [Var "y", Var "zs"]]])
+      [ ( App "<" [Var "x", Var "y"]
+        , App ":" [Var "x", Var "ys"] )
+        ( App ">" [Var "x", Var "y"]
+        , App ":"" [Var "y", App "ins" [Var "x", Var "zs"]] )
+        ( LTrue, Var "ys" )
+      ]
+      []
 \end{haskell}
+We now need, in \texttt{Match}, to distinguish a single RHS
+from a list of  guarded RHS.
+
 
 \texttt{"xxx"} parses as:
 \begin{haskell}
