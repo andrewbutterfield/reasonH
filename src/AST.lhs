@@ -23,7 +23,28 @@ handle qualified names,
 or treat patterns differently to general expressions.
 Wildcard patterns (or even irrefutable ones)
 can be handled using names.
-For now we won't support ``as''-patterns.
+
+
+\subsection{Simplified Haskell AST}
+
+We simplify things dramatically.
+First, expressions:
+\begin{code}
+data Expr
+  = LBool Bool | LInt Int | LChar
+  | Var String
+  | App String [Expr]
+  | GrdExpr [(Expr,Expr)]
+  | Let [Decl] Expr
+  deriving (Eq,Show)
+\end{code}
+Then, declarations:
+\begin{code}
+data Decl
+  = Fun [ ( Expr, Expr, [Decl] ) ]
+  | Bind String Expr
+  deriving (Eq, Show)
+\end{code}
 
 \newpage
 \subsection{Examples}
@@ -264,41 +285,130 @@ HsMatch (SrcLoc {srcFilename = "FPC1.hs", srcLine = 14, srcColumn = 1})
 Suggested form:
 \begin{haskell}
 Match (App "ins" [Var "x", App "@" [ys,App ":" [Var "y", Var "zs"]]])
-      [ ( App "<" [Var "x", Var "y"]
-        , App ":" [Var "x", Var "ys"] )
-        ( App ">" [Var "x", Var "y"]
-        , App ":"" [Var "y", App "ins" [Var "x", Var "zs"]] )
-        ( LTrue, Var "ys" )
-      ]
+      (GrdExpr [ ( App "<" [Var "x", Var "y"]
+                 , App ":" [Var "x", Var "ys"] )
+               , ( App ">" [Var "x", Var "y"]
+                 , App ":"" [Var "y", App "ins" [Var "x", Var "zs"]] )
+               , ( LTrue, Var "ys" )
+               ]
+      )
       []
 \end{haskell}
-We now need, in \texttt{Match}, to distinguish a single RHS
-from a list of  guarded RHS.
 
-
-\texttt{"xxx"} parses as:
+\newpage
+\texttt{"wf (x:xs)"}\\
+\texttt{" | even xnum  = 'e'"}\\
+\texttt{" | xnum < 60  = 's'"}\\
+\texttt{" | otherwise  = 'L'"}\\
+\texttt{" where"}\\
+\texttt{"   xnum = ord x"}
+parses as:
 \begin{haskell}
-xxx
+HsMatch (SrcLoc {srcFilename = "Where.hs", srcLine = 5, srcColumn = 1})
+  (HsIdent "wf")
+  [ HsPParen
+      ( HsPInfixApp (HsPVar (HsIdent "x"))
+                    (Special HsCons)
+                    (HsPVar (HsIdent "xs"))
+      )
+  ]
+  ( HsGuardedRhss
+      [ HsGuardedRhs
+         (SrcLoc {srcFilename = "Where.hs", srcLine = 6, srcColumn = 2})
+         (HsApp (HsVar (UnQual (HsIdent "even")))
+                (HsVar (UnQual (HsIdent "xnum")))
+         )
+         (HsLit (HsChar 'e'))
+      , HsGuardedRhs
+         (SrcLoc {srcFilename = "Where.hs", srcLine = 7, srcColumn = 2})
+         (HsInfixApp (HsVar (UnQual (HsIdent "xnum")))
+                     (HsQVarOp (UnQual (HsSymbol "<")))
+                     (HsLit (HsInt 60))
+         )
+         (HsLit (HsChar 's'))
+      , HsGuardedRhs
+         (SrcLoc {srcFilename = "Where.hs", srcLine = 8, srcColumn = 2})
+         (HsVar (UnQual (HsIdent "otherwise")))
+         (HsLit (HsChar 'L'))
+      ]
+  )
+  [ HsPatBind
+     (SrcLoc {srcFilename = "Where.hs", srcLine = 10, srcColumn = 4})
+     ( HsPVar (HsIdent "xnum"))
+     ( HsUnGuardedRhs
+         ( HsApp (HsVar (UnQual (HsIdent "ord")))
+                 (HsVar (UnQual (HsIdent "x")))
+         )
+     )
+     []
+   ]
 \end{haskell}
 Suggested form:
 \begin{haskell}
-xxx
+Match (App "wf" [App ":" [Var "x", Var "xs"]])
+      (GrdExpr [ ( App "even" [Var "xnum"]
+                 , LChar 'e' )
+               , ( App "<" [Var "xnum", LInt 60]
+                 , LChar 's' )
+               , ( LTrue, LChar 'L' )
+               ]
+      )
+      [ Bind "xnum" (App "ord" [Var "xs"])]
 \end{haskell}
+%
+% \texttt{"xxx"} parses as:
+% \begin{haskell}
+% xxx
+% \end{haskell}
+% Suggested form:
+% \begin{haskell}
+% xxx
+% \end{haskell}
 
-\texttt{"xxx"} parses as:
+\newpage
+Gathered forms:
 \begin{haskell}
-xxx
-\end{haskell}
-Suggested form:
-\begin{haskell}
-xxx
-\end{haskell}
+App "+" [ LInt 1, App "+" [ LInt 2, LInt 3] ]
 
-\texttt{"xxx"} parses as:
-\begin{haskell}
-xxx
-\end{haskell}
-Suggested form:
-\begin{haskell}
-xxx
+App "+" [LInt 1, LInt 2, LInt 3]
+
+App "+" [App "+" [LInt 1, LInt 2], LInt 3]
+
+Match (App "++" [ LNull, Var "ys" ]) (Var "ys") []
+
+Match (App "++" [App ":" [Var "x", Var "xs"], Var "ys"] )
+      (App ":" [Var "x", App "++" [Var "xs", Var "ys"]])
+      []
+
+Fun [ Match <as above>, Match <as above> ]
+
+Match (App "reverse" [LNull]) (LNull) []
+
+Match (App "reverse" [App ":" [Var "x", Var "xs"]])
+      (App "++" [App "reverse" [Var "xs"], List [Var "x"])
+      []
+
+Match (App "length" [App ":" [Var "_", Var "xs"]])
+      (App "+" [LInt 1,App "length" [Var "xs"]])
+      []
+
+Match (App "ins" [Var "x", App "@" [ys,App ":" [Var "y", Var "zs"]]])
+      (GrdExpr [ ( App "<" [Var "x", Var "y"]
+                 , App ":" [Var "x", Var "ys"] )
+               , ( App ">" [Var "x", Var "y"]
+                 , App ":"" [Var "y", App "ins" [Var "x", Var "zs"]] )
+               , ( LTrue, Var "ys" )
+               ]
+      )
+      []
+
+Match (App "wf" [App ":" [Var "x", Var "xs"]])
+      (GrdExpr [ ( App "even" [Var "xnum"]
+                 , LChar 'e' )
+               , ( App "<" [Var "xnum", LInt 60]
+                 , LChar 's' )
+               , ( LTrue, LChar 'L' )
+               ]
+      )
+      [ Bind "xnum" (App "ord" [Var "xs"])]
 \end{haskell}

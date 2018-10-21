@@ -1,0 +1,60 @@
+HsModule
+  (SrcLoc {srcFilename = "Where.hs", srcLine = 1, srcColumn = 1})
+  (Module "Where")
+  Nothing
+  []
+  [ HsTypeSig (SrcLoc {srcFilename = "Where.hs", srcLine = 3, srcColumn = 1})
+      [HsIdent "wf"]
+      ( HsQualType []
+          ( HsTyFun
+              ( HsTyApp (HsTyCon (Special HsListCon))
+                        (HsTyCon (UnQual (HsIdent "Char"))) )
+              (HsTyCon (UnQual (HsIdent "Char")))
+          )
+      )
+  , HsFunBind
+      [ HsMatch (SrcLoc {srcFilename = "Where.hs", srcLine = 4, srcColumn = 1})
+          (HsIdent "wf")
+            [HsPList []]
+            (HsUnGuardedRhs (HsLit (HsChar '?')))
+            []
+      , HsMatch (SrcLoc {srcFilename = "Where.hs", srcLine = 5, srcColumn = 1})
+          (HsIdent "wf")
+          [ HsPParen
+              ( HsPInfixApp (HsPVar (HsIdent "x"))
+                            (Special HsCons)
+                            (HsPVar (HsIdent "xs"))
+              )
+          ]
+          ( HsGuardedRhss
+              [ HsGuardedRhs
+                 (SrcLoc {srcFilename = "Where.hs", srcLine = 6, srcColumn = 2})
+                 (HsApp (HsVar (UnQual (HsIdent "even")))
+                        (HsVar (UnQual (HsIdent "xnum")))
+                 )
+                 (HsLit (HsChar 'e'))
+              , HsGuardedRhs
+                 (SrcLoc {srcFilename = "Where.hs", srcLine = 7, srcColumn = 2})
+                 (HsInfixApp (HsVar (UnQual (HsIdent "xnum")))
+                             (HsQVarOp (UnQual (HsSymbol "<")))
+                             (HsLit (HsInt 60))
+                 )
+                 (HsLit (HsChar 's'))
+              , HsGuardedRhs
+                 (SrcLoc {srcFilename = "Where.hs", srcLine = 8, srcColumn = 2})
+                 (HsVar (UnQual (HsIdent "otherwise")))
+                 (HsLit (HsChar 'L'))
+              ]
+          )
+          [ HsPatBind
+             (SrcLoc {srcFilename = "Where.hs", srcLine = 10, srcColumn = 4})
+             ( HsPVar (HsIdent "xnum"))
+             ( HsUnGuardedRhs
+                 ( HsApp (HsVar (UnQual (HsIdent "ord")))
+                         (HsVar (UnQual (HsIdent "x")))
+                 )
+             )
+             []
+           ]
+      ]
+  ]
