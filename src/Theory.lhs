@@ -14,6 +14,7 @@ import Language.Haskell.Pretty
 import Language.Haskell.Syntax
 
 import Utilities
+import AST
 
 import Debug.Trace
 dbg msg x = trace (msg ++ show x) x
@@ -182,7 +183,7 @@ thTheorems__  f thry = thry{ thTheorems  = f $ thTheorems thry }
 data Law
  = LAW {
      lawName :: String
-   , lawEqn :: HsExp
+   , lawEqn :: Expr
    }
  deriving Show
 \end{code}
@@ -192,9 +193,9 @@ data Law
 data InductionScheme
  = IND {
      indType :: String
-   , indBase :: HsExp             -- base value
-   , indStep :: (String, HsExp)   -- induction var to step expression
-   , indInj :: (HsExp,HsExp)      -- bits equal whole
+   , indBase :: Expr             -- base value
+   , indStep :: (String, Expr)   -- induction var to step expression
+   , indInj :: (Expr,Expr)      -- bits equal whole
    }
  deriving Show
 \end{code}
@@ -222,11 +223,11 @@ data Strategy
 \begin{code}
  | Induction {
      iVars :: [(String,String)] -- type var
-   , baseVals :: [(String,HsExp)] -- var = value
+   , baseVals :: [(String,Expr)] -- var = value
    , baseStrategy :: Strategy
-   , steps :: [(String,HsExp)] -- var --> expr
-   , assume :: HsExp
-   , iGoal :: HsExp
+   , steps :: [(String,Expr)] -- var --> expr
+   , assume :: Expr
+   , iGoal :: Expr
    , stepStrategy :: Strategy
    }
  deriving Show
@@ -236,8 +237,8 @@ data Strategy
 \begin{code}
 data Calculation
  = CALC {
-     goal :: HsExp
-   , calcs :: [(Justification,HsExp)]
+     goal :: Expr
+   , calcs :: [(Justification,Expr)]
    }
  deriving Show
 \end{code}
@@ -342,7 +343,7 @@ parseLaw pmode theory lwName lno rest lns
 
 parseExprChunk :: Monad m
                => ParseMode -> Int -> String -> Lines
-               -> m (HsExp, Lines)
+               -> m (Expr, Lines)
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
@@ -529,7 +530,7 @@ splitLinesOn'' pmode splitHere chunk0 spets split knuhc (ln:lns)
 
 Parsing calculation steps:
 \begin{code}
-parseSteps :: Monad m => ParseMode -> Steps -> m [(Justification,HsExp)]
+parseSteps :: Monad m => ParseMode -> Steps -> m [(Justification,Expr)]
 parseSteps pmode [] = return []
 parseSteps pmode ((justify,chunk):rest)
   = do just <- parseJustification pmode justify
@@ -624,7 +625,7 @@ defFocus _        =  Top
 \subsection{Parsing Expressions and Equivalences}
 
 \begin{code}
-parseExpr :: Monad m => ParseMode -> Lines -> Parser m HsExp
+parseExpr :: Monad m => ParseMode -> Lines -> Parser m Expr
 parseExpr pmode restlns [] = pFail pmode 0 0 "no expression!"
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
@@ -641,7 +642,7 @@ parseExpr pmode restlns chunk@((lno,_):_)
 \end{code}
 
 \begin{code}
-parseEquiv :: Monad m => ParseMode -> Lines -> Parser m (HsExp, HsExp)
+parseEquiv :: Monad m => ParseMode -> Lines -> Parser m (Expr, Expr)
 parseEquiv pmode restlns [] = pFail pmode 0 0 "no equivalence!"
 parseEquiv pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
@@ -662,23 +663,25 @@ parseEquiv pmode restlns chunk@((lno,_):_)
 \subsection{Extracting Expressions and Equivalences}
 
 \begin{code}
-getNakedExpression :: HsModule -> HsExp
+getNakedExpression :: HsModule -> Expr
 getNakedExpression
- (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ]) = hsexp
+ (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
+    = hsExp2Expr hsexp
 getNakedExpression _ = hs42
 
-hs42 = HsLit (HsInt 42)
+hs42 = LInt 42
 \end{code}
 
 
 
 
 \begin{code}
-getNakedEquivalence :: HsModule -> (HsExp,HsExp)
+getNakedEquivalence :: HsModule -> (Expr,Expr)
 getNakedEquivalence
  (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
    = case hsexp of
-       (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)  ->  (e1,e2)
+       (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "==="))) e2)
+          ->  (hsExp2Expr e1, hsExp2Expr e2)
        _               ->  (hs42,hs42)
 getNakedEquivalence _  =   (hs42,hs42)
 \end{code}

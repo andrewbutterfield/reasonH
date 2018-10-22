@@ -6,9 +6,10 @@ LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{haskell}
 \begin{code}
 module AST
---(
---  Expr(..), Match, Decl(..)
---)
+(
+  Expr(..), Match, Decl(..)
+, hsDecl2Decl, hsExp2Expr
+)
 where
 
 import Language.Haskell.Parser
@@ -35,9 +36,9 @@ We simplify things dramatically.
 First, expressions:
 \begin{code}
 data Expr
-  = LBool Bool | LInt Int | LChar
+  = LBool Bool | LInt Int | LChar Char
   | Var String
-  | App String [Expr]
+  | App Expr Expr
   | GrdExpr [(Expr,Expr)]
   | Let [Decl] Expr
   deriving (Eq,Show)
@@ -45,7 +46,7 @@ data Expr
 Next, matchings:
 \begin{code}
 type Match = ( String  -- function name
-             , Expr    -- LHS pattern
+             , [Expr]  -- LHS patterns
              , Expr    -- RHS outcome
              , [Decl]  -- local declarations
              )
@@ -54,22 +55,89 @@ Finally, declarations:
 \begin{code}
 data Decl
   = Fun [Match]
-  | Bind String Expr [Decl]
+  | Bind Expr Expr [Decl]
   deriving (Eq, Show)
+\end{code}
+
+\subsection{Simplifying Strings}
+
+\begin{code}
+hsName2Str :: HsName -> String
+hsName2Str (HsIdent str)  = str
+hsName2Str (HsSymbol str) = str
+
+hsSpcCon2Str :: HsSpecialCon -> String
+hsSpcCon2Str HsUnitCon  =  "()"
+hsSpcCon2Str HsListCon  =  "[]"
+hsSpcCon2Str HsFunCon   =  "->"
+hsSpcCon2Str HsCons     =  ":"
+hsSpcCon2Str (HsTupleCon i)  = "("++replicate (i-1) ','++")"
+
+hsQName2Str :: HsQName -> String
+hsQName2Str (Qual (Module m) nm) = m ++ '.':hsName2Str nm
+hsQName2Str (UnQual nm) = hsName2Str nm
+hsQName2Str (Special hsc) = hsSpcCon2Str hsc
+
+hsQOp2Str :: HsQOp -> String
+hsQOp2Str (HsQVarOp hsq)  = hsQName2Str hsq
+hsQOp2Str (HsQConOp hsq)  = hsQName2Str hsq
+
+hsExp2Str :: HsExp -> String
+hsExp2Str (HsVar qnm)  = hsQName2Str qnm
+hsExp2Str (HsCon qnm)  = hsQName2Str qnm
+hsExp2Str hse = error ("hsExp2Str invalid for "++show hse)
+
+hsPat2Str :: HsPat -> String
+hsPat2Str (HsPVar pnm) = hsName2Str pnm
+hsPat2Str hsp = error ("hsPat2Str invalid for "++show hsp)
+\end{code}
+
+\subsection{Simplifying Literals}
+
+\begin{code}
+hsLit2Expr :: HsLiteral -> Expr
+hsLit2Expr (HsInt i)  = LInt $ fromInteger i
+hsLit2Expr (HsChar c) = LChar c
+hsLit2Expr lit = error ("hsLit2Expr NYIf "++show lit)
 \end{code}
 
 \subsection{Simplifying Parsed Expressions}
 
 \begin{code}
 hsExp2Expr :: HsExp -> Expr
+hsExp2Expr (HsVar hsq)  =  Var $ hsQName2Str hsq
+hsExp2Expr (HsCon hsq)  =  Var $ hsQName2Str hsq
+hsExp2Expr (HsLit lit)  =  hsLit2Expr lit
+hsExp2Expr (HsInfixApp e1 op e2)
+  = App (App (Var $ hsQOp2Str op) (hsExp2Expr e1)) (hsExp2Expr e2)
+hsExp2Expr (HsApp e1 e2)
+  = App (hsExp2Expr e1) (hsExp2Expr e2)
+hsExp2Expr (HsParen hse) = hsExp2Expr hse
 hsExp2Expr hse = error ("hsExp2Expr NYIf "++show hse)
+\end{code}
+
+For now, we view righthand-sides as expressions
+\begin{code}
+hsRhs2Expr :: HsRhs -> Expr
+hsRhs2Expr (HsUnGuardedRhs hse)     =  hsExp2Expr hse
+hsRhs2Expr (HsGuardedRhss grdrhss)  =  GrdExpr $ map hsGrdRHs2Expr2 grdrhss
+
+hsGrdRHs2Expr2 :: HsGuardedRhs -> (Expr, Expr)
+hsGrdRHs2Expr2 (HsGuardedRhs _ grd rhs) = (hsExp2Expr grd, hsExp2Expr rhs)
+\end{code}
+
+For now, we view patterns as expressions
+\begin{code}
+hsPat2Expr :: HsPat -> Expr
+hsPat2Expr hsp = error ("hsPat2Expr NYIf "++show hsp)
 \end{code}
 
 \subsection{Simplifying Parsed Matches}
 
 \begin{code}
 hsMatch2Match :: HsMatch -> Match
-hsMatch2Match hsm = error ("hsMatch2Match NYIf "++show hsm)
+hsMatch2Match (HsMatch _ nm pats rhs decls)
+  = (hsName2Str nm, map hsPat2Expr pats, hsRhs2Expr rhs, map hsDecl2Decl decls)
 \end{code}
 
 \subsection{Simplifying Parsed Declarations}
@@ -77,8 +145,10 @@ hsMatch2Match hsm = error ("hsMatch2Match NYIf "++show hsm)
 \begin{code}
 hsDecl2Decl :: HsDecl -> Decl
 hsDecl2Decl (HsFunBind hsMatches) = Fun $ map hsMatch2Match hsMatches
+
 hsDecl2Decl (HsPatBind _ hspat hsrhs hsdecls)
- = error ("hsDecl2Decl HsPatBind NYI")
+ = Bind (hsPat2Expr hspat) (hsRhs2Expr hsrhs) (map hsDecl2Decl hsdecls)
+
 hsDecl2Decl hsd = error ("hsDecl2Decl NYIf "++show hsd)
 \end{code}
 
