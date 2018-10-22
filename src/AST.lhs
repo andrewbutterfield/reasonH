@@ -5,7 +5,11 @@ Copyright  Andrew Buttefield (c) 2017--18
 LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{haskell}
 \begin{code}
-module AST where
+module AST
+--(
+--  Expr(..), Match, Decl(..)
+--)
+where
 
 import Language.Haskell.Parser
 import Language.Haskell.Pretty
@@ -38,12 +42,44 @@ data Expr
   | Let [Decl] Expr
   deriving (Eq,Show)
 \end{code}
-Then, declarations:
+Next, matchings:
+\begin{code}
+type Match = ( String  -- function name
+             , Expr    -- LHS pattern
+             , Expr    -- RHS outcome
+             , [Decl]  -- local declarations
+             )
+\end{code}
+Finally, declarations:
 \begin{code}
 data Decl
-  = Fun [ ( Expr, Expr, [Decl] ) ]
-  | Bind String Expr
+  = Fun [Match]
+  | Bind String Expr [Decl]
   deriving (Eq, Show)
+\end{code}
+
+\subsection{Simplifying Parsed Expressions}
+
+\begin{code}
+hsExp2Expr :: HsExp -> Expr
+hsExp2Expr hse = error ("hsExp2Expr NYIf "++show hse)
+\end{code}
+
+\subsection{Simplifying Parsed Matches}
+
+\begin{code}
+hsMatch2Match :: HsMatch -> Match
+hsMatch2Match hsm = error ("hsMatch2Match NYIf "++show hsm)
+\end{code}
+
+\subsection{Simplifying Parsed Declarations}
+
+\begin{code}
+hsDecl2Decl :: HsDecl -> Decl
+hsDecl2Decl (HsFunBind hsMatches) = Fun $ map hsMatch2Match hsMatches
+hsDecl2Decl (HsPatBind _ hspat hsrhs hsdecls)
+ = error ("hsDecl2Decl HsPatBind NYI")
+hsDecl2Decl hsd = error ("hsDecl2Decl NYIf "++show hsd)
 \end{code}
 
 \newpage
