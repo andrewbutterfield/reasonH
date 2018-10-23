@@ -6,6 +6,7 @@ import Language.Haskell.Syntax
 
 import REPL
 import AST
+import Matching
 import HParse
 import Theory
 
