@@ -45,6 +45,8 @@ data Expr
   | PApp String [Expr]
   deriving (Eq,Show)
 \end{code}
+
+\newpage
 Next, matchings:
 \begin{code}
 data Match = Match { fname ::  String  -- function name
