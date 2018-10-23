@@ -7,7 +7,7 @@ LICENSE: BSD3, see file LICENSE at reasonEq root
 \begin{code}
 module AST
 (
-  Expr(..), Match, Decl(..), Mdl(..)
+  Expr(..), Match(..), Decl(..), Mdl(..)
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
 )
 where

@@ -78,6 +78,7 @@ hreqEndTidy _ hreqs = return hreqs
 
 hreqCommands :: HReqCommands
 hreqCommands = [ cmdShowState
+               , cmdShowLaws
                -- , cmdLoadHaskell -- deprecated for now.
                , cmdLoadTheory
                ]
@@ -106,6 +107,44 @@ showCurrThry Nothing = putStrLn "No Current Theory"
 showCurrThry (Just thry) = putStrLn ("Current Theory: "++theoryName thry)
 
 shlist strs = intercalate ", " strs
+
+
+cmdShowLaws :: HReqCmdDescr
+cmdShowLaws
+  = ( "ll"
+    , "show 'law' names"
+    , "ll -- show all 'law' names"
+    , showLaws )
+
+showLaws _ hreqs
+  = do sequence_ $ map showHModLaws $ hmods hreqs
+       sequence_ $ map showTheoryLaws $ hthrys hreqs
+       case currThry hreqs of
+         Nothing    -> putStrLn "No Current Theory"
+         Just thry  -> do showTheoryLaws thry
+                          showTheorems thry
+       return hreqs
+
+showHModLaws hmod
+ = do putStrLn ("Laws in "++mname hmod)
+      sequence_ $ map showDecl $ topdecls hmod
+
+showDecl (Fun []) = putStrLn "  !dud Fun!"
+showDecl (Fun (m:_))  =  putStrLn ("  " ++ fname m)
+showDecl (Bind (Var n) _ _) = putStrLn ("  " ++ n)
+showDecl _ = putStrLn "  ??"
+
+showTheoryLaws thry
+  = do putStrLn ("Laws in "++theoryName thry)
+       sequence_ $ map showLaw $ thLaws thry
+
+showLaw law = putStrLn ("  "++ lawName law)
+
+showTheorems thry
+  = do putStrLn ("Theorems in "++theoryName thry)
+       sequence_ $ map showTheorem $ thTheorems thry
+
+showTheorem thrm = putStrLn ("  "++ thmName thrm)
 
 -- deprecated for now
 cmdLoadHaskell :: HReqCmdDescr
