@@ -1,8 +1,6 @@
 module Main where
 
-import Language.Haskell.Parser
-import Language.Haskell.Pretty
-import Language.Haskell.Syntax
+import Data.List
 
 import REPL
 import AST
@@ -40,12 +38,18 @@ hreqConfig
 
 
 data HReqState
-  = HReq { hmod :: Maybe Mdl
-         , hthry :: Maybe Theory
+  = HReq { hmods :: [Mdl]
+         , hthrys :: [Theory]
+         , currThry :: Maybe Theory
          }
   deriving Show
 
-hreqs0 = HReq Nothing Nothing
+hmods__ f hrs = hrs{ hmods = f $ hmods hrs} ; hmods_ h = hmods__ $ const h
+hthrys__ f hrs = hrs{ hthrys = f $ hthrys hrs} ; hthrys_ h = hthrys__ $ const h
+currThry__ f hrs = hrs{ currThry = f $ currThry hrs}
+currThry_ h = currThry__ $ const h
+
+hreqs0 = HReq [] [] Nothing
 
 type HReqCmd       =  REPLCmd      HReqState
 type HReqCmdDescr  =  REPLCmdDescr HReqState
@@ -73,8 +77,37 @@ hreqEndCondition _ = False
 hreqEndTidy _ hreqs = return hreqs
 
 hreqCommands :: HReqCommands
-hreqCommands = [ cmdLoadHaskell, cmdLoadTheory ]
+hreqCommands = [ cmdShowState
+               -- , cmdLoadHaskell -- deprecated for now.
+               , cmdLoadTheory
+               ]
 
+cmdShowState :: HReqCmdDescr
+cmdShowState
+  = ( "ss"
+    , "show state"
+    , "show short summary of state contents"
+    , showState )
+
+showState _ hreqs
+  = do showHModNames   $ hmods    hreqs
+       showTheoryNames $ hthrys   hreqs
+       showCurrThry    $ currThry hreqs
+       return hreqs
+
+showHModNames [] = putStrLn "No Haskell Modules"
+showHModNames hms = putStrLn ("Haskell Modules: " ++ shlist (map mname hms))
+
+showTheoryNames [] = putStrLn "No Required Theories"
+showTheoryNames thrys
+  = putStrLn ("Required Theories: "++ shlist (map theoryName thrys))
+
+showCurrThry Nothing = putStrLn "No Current Theory"
+showCurrThry (Just thry) = putStrLn ("Current Theory: "++theoryName thry)
+
+shlist strs = intercalate ", " strs
+
+-- deprecated for now
 cmdLoadHaskell :: HReqCmdDescr
 cmdLoadHaskell
   = ( "lh"
@@ -86,16 +119,17 @@ cmdLoadHaskell
 
 loadSource [] hreqs = putStrLn "no file given" >> return hreqs
 loadSource (fnroot:_) hreqs
-  = do  let fname = fnroot ++ ".hs"
-        modstr <- readFile ("examples/"++fname)
-        putStrLn ("Module text:\n\n"++modstr)
-        mdl <- parseHModule fname modstr
+  = do  mdl <- readHaskell fnroot
         putStrLn "Module AST:\n"
         let aststr = show mdl
         putStrLn aststr
         writeFile ("examples/"++fnroot++".ast") aststr
-        return hreqs{ hmod = Just mdl }
+        return $ hmods__ (++[mdl]) hreqs
 
+readHaskell fnroot
+  = do let fname = fnroot ++ ".hs"
+       modstr <- readFile ("examples/"++fname)
+       parseHModule fname modstr
 
 cmdLoadTheory :: HReqCmdDescr
 cmdLoadTheory
@@ -103,23 +137,47 @@ cmdLoadTheory
     , "load Theory source"
     , unlines
         [ "lt <fname>  -- load examples/<fname>.thr"
+        , " -- also loads all haskell modules and theories that it imports"
         ]
     , loadTheory )
 
 loadTheory [] hreqs = putStrLn "no file given" >> return hreqs
 loadTheory (fnroot:_) hreqs
-  = do  let fname = fnroot ++ ".thr"
-        thrystr <- readFile ("examples/"++fname)
-        putStrLn ("Theory text:\n\n"++thrystr)
-        let result = parseTheory (ParseMode fname) thrystr
-        case result of
+  = do theory <- readTheory fnroot
+       putStrLn "Theory AST:\n"
+       let aststr = show theory
+       putStrLn aststr
+       loadDependencies theory hreqs
+
+readTheory fnroot
+  = do let fname = fnroot ++ ".thr"
+       thrystr <- readFile ("examples/"++fname)
+       let result = parseTheory (ParseMode fname) thrystr
+       case result of
          ParseFailed loc msg
           -> do putStrLn "Theory parse failed"
                 putStrLn $ show loc
                 putStrLn msg
-                return hreqs
+                fail msg
          ParseOk theory
-          -> do putStrLn "Theory AST:\n"
-                let aststr = show theory
-                putStrLn aststr
-                return hreqs{ hthry = Just theory }
+          -> return theory
+
+loadDependencies theory hreqs
+  = do hms <- loadModDeps $ hkImports theory
+       ths <- loadThryDeps $ thImports theory
+       return $ currThry_ (Just theory)
+              $ hthrys_ ths
+              $ hmods_ hms
+              $ hreqs
+
+loadModDeps []  = return []
+loadModDeps (n:ns)
+  = do m <- readHaskell n
+       ms <- loadModDeps ns
+       return (m:ms)
+
+loadThryDeps [] = return []
+loadThryDeps (t:ts)
+  = do thry <- readTheory t
+       thrys <- loadThryDeps ts
+       return (thry:thrys)
