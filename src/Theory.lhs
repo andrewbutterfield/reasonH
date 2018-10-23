@@ -5,7 +5,13 @@ Copyright  Andrew Buttefield (c) 2017--18
 LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{verbatim}
 \begin{code}
-module Theory where
+module Theory
+( Theory(..), parseTheory
+, Theorem(..), findTheorem
+, Law(..), InductionScheme(..)
+, Strategy(..), Calculation(..), Justification(..)
+)
+where
 
 import Data.Char
 

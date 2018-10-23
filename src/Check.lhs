@@ -10,7 +10,7 @@ module Check
 where
 
 import AST
-import Theory hiding (dbg)
+import Theory 
 
 import Debug.Trace
 dbg msg x = trace (msg ++ show x) x
