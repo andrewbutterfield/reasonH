@@ -670,3 +670,14 @@ getChunk' snl (ln@(_,str):lns)
  | emptyLine str  =  (reverse snl,lns)
  | otherwise      =  getChunk' (ln:snl) lns
 \end{code}
+
+\newpage
+\subsection{Theorem Utilities}
+
+\begin{code}
+findTheorem :: Monad m => String -> [Theorem] -> m Theorem
+findTheorem _ [] = fail "theorem not found"
+findTheorem nm (thm:thms)
+ | nm == thmName thm  =  return thm
+ | otherwise          =  findTheorem nm thms
+\end{code}

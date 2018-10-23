@@ -1,12 +1,14 @@
 module Main where
 
 import Data.List
+import Data.Maybe
 
 import REPL
 import AST
 import Matching
 import HParse
 import Theory
+import Check
 
 main :: IO ()
 main
@@ -81,6 +83,7 @@ hreqCommands = [ cmdShowState
                , cmdShowLaws
                -- , cmdLoadHaskell -- deprecated for now.
                , cmdLoadTheory
+               , cmdCheckTheorem
                ]
 
 cmdShowState :: HReqCmdDescr
@@ -220,3 +223,22 @@ loadThryDeps (t:ts)
   = do thry <- readTheory t
        thrys <- loadThryDeps ts
        return (thry:thrys)
+
+cmdCheckTheorem :: HReqCmdDescr
+cmdCheckTheorem
+  = ( "ct"
+    , "check theorem"
+    , "ct <name> -- check theorem called name"
+    , theoremCheck )
+
+theoremCheck [] hreqs
+  = do putStrLn "no theorem specified"
+       return hreqs
+
+theoremCheck (n:_) hreqs
+  = do case currThry hreqs of
+         Nothing    ->  putStrLn "no current theory"
+         Just thry  ->  case findTheorem n $ thTheorems thry of
+                          Nothing   ->  putStrLn ("Theorem not found: "++n)
+                          Just thm  ->  showReport $ checkTheorem thm
+       return hreqs
