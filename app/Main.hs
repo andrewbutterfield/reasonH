@@ -6,6 +6,7 @@ import Language.Haskell.Syntax
 
 import REPL
 import AST
+import HParse
 import Theory
 
 main :: IO ()
@@ -87,17 +88,12 @@ loadSource (fnroot:_) hreqs
   = do  let fname = fnroot ++ ".hs"
         modstr <- readFile ("examples/"++fname)
         putStrLn ("Module text:\n\n"++modstr)
-        let result = parseModuleWithMode (ParseMode fname) modstr
-        case result of
-         ParseFailed loc str
-          -> putStrLn (unlines [show loc, str ]) >> return hreqs
-         ParseOk hsmod
-          -> do putStrLn "Module AST:\n"
-                let mdl = hsModule2Mdl hsmod
-                let aststr = show mdl
-                putStrLn aststr
-                writeFile ("examples/"++fnroot++".ast") aststr
-                return hreqs{ hmod = Just mdl }
+        mdl <- parseHModule fname modstr
+        putStrLn "Module AST:\n"
+        let aststr = show mdl
+        putStrLn aststr
+        writeFile ("examples/"++fnroot++".ast") aststr
+        return hreqs{ hmod = Just mdl }
 
 
 cmdLoadTheory :: HReqCmdDescr
