@@ -5,6 +5,7 @@ import Language.Haskell.Pretty
 import Language.Haskell.Syntax
 
 import REPL
+import AST
 import Theory
 
 main :: IO ()
@@ -37,7 +38,7 @@ hreqConfig
 
 
 data HReqState
-  = HReq { hmod :: Maybe HsModule
+  = HReq { hmod :: Maybe Mdl
          , hthry :: Maybe Theory
          }
   deriving Show
@@ -92,12 +93,11 @@ loadSource (fnroot:_) hreqs
           -> putStrLn (unlines [show loc, str ]) >> return hreqs
          ParseOk hsmod
           -> do putStrLn "Module AST:\n"
-                let aststr = show hsmod
+                let mdl = hsModule2Mdl hsmod
+                let aststr = show mdl
                 putStrLn aststr
                 writeFile ("examples/"++fnroot++".ast") aststr
-                putStrLn "\nIsn't it pretty?\n"
-                putStrLn (prettyPrint hsmod)
-                return hreqs{ hmod = Just hsmod }
+                return hreqs{ hmod = Just mdl }
 
 
 cmdLoadTheory :: HReqCmdDescr

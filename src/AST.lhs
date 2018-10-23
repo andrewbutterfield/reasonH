@@ -7,8 +7,8 @@ LICENSE: BSD3, see file LICENSE at reasonEq root
 \begin{code}
 module AST
 (
-  Expr(..), Match, Decl(..)
-, hsDecl2Decl, hsExp2Expr
+  Expr(..), Match, Decl(..), Mdl(..)
+, hsModule2Mdl, hsDecl2Decl, hsExp2Expr
 )
 where
 
@@ -39,24 +39,43 @@ data Expr
   = LBool Bool | LInt Int | LChar Char
   | Var String
   | App Expr Expr
+  | If Expr Expr Expr
   | GrdExpr [(Expr,Expr)]
   | Let [Decl] Expr
+  | PApp String [Expr]
   deriving (Eq,Show)
 \end{code}
 Next, matchings:
 \begin{code}
-type Match = ( String  -- function name
-             , [Expr]  -- LHS patterns
-             , Expr    -- RHS outcome
-             , [Decl]  -- local declarations
-             )
+data Match = Match { fname ::  String  -- function name
+                   , lhspat :: [Expr]  -- LHS patterns
+                   , rhs :: Expr    -- RHS outcome
+                   , ldecls :: [Decl]  -- local declarations
+                   }
+           deriving (Eq, Show)
 \end{code}
-Finally, declarations:
+Then, declarations:
 \begin{code}
 data Decl
   = Fun [Match]
   | Bind Expr Expr [Decl]
+  | Syntax -- not relevant to this tool !
+  | Type String -- just noting name for now - to be addressed later
   deriving (Eq, Show)
+\end{code}
+
+Finally, modules (ignoring exports)
+\begin{code}
+data Mdl = Mdl { mname :: String
+               , imps :: [Import]
+               , topdecls :: [Decl]
+               }
+         deriving Show
+
+data Import = Imp { imname :: String
+                  , asnmame :: Maybe String
+                  }
+            deriving Show
 \end{code}
 
 \subsection{Simplifying Strings}
@@ -109,11 +128,22 @@ hsExp2Expr (HsVar hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsCon hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsLit lit)  =  hsLit2Expr lit
 hsExp2Expr (HsInfixApp e1 op e2)
-  = App (App (Var $ hsQOp2Str op) (hsExp2Expr e1)) (hsExp2Expr e2)
+  =  App (App (Var $ hsQOp2Str op) (hsExp2Expr e1)) (hsExp2Expr e2)
 hsExp2Expr (HsApp e1 e2)
-  = App (hsExp2Expr e1) (hsExp2Expr e2)
-hsExp2Expr (HsParen hse) = hsExp2Expr hse
-hsExp2Expr hse = error ("hsExp2Expr NYIf "++show hse)
+  =  App (hsExp2Expr e1) (hsExp2Expr e2)
+hsExp2Expr (HsIf hse1 hse2 hse3)
+  = If (hsExp2Expr hse1) (hsExp2Expr hse2) (hsExp2Expr hse2)
+hsExp2Expr (HsParen hse)  =  hsExp2Expr hse
+hsExp2Expr (HsList hses)  =  hsExps2Expr hses
+hsExp2Expr hse  =  error ("hsExp2Expr NYIf "++show hse)
+\end{code}
+
+\begin{code}
+eNull = Var "[]"
+eCons = Var ":"
+hsExps2Expr :: [HsExp] -> Expr
+hsExps2Expr []          =  eNull
+hsExps2Expr (hse:hses)  =  App (App eCons $ hsExp2Expr hse) $ hsExps2Expr hses
 \end{code}
 
 For now, we view righthand-sides as expressions
@@ -129,7 +159,23 @@ hsGrdRHs2Expr2 (HsGuardedRhs _ grd rhs) = (hsExp2Expr grd, hsExp2Expr rhs)
 For now, we view patterns as expressions
 \begin{code}
 hsPat2Expr :: HsPat -> Expr
+hsPat2Expr (HsPVar hsn) = Var $ hsName2Str hsn
+hsPat2Expr (HsPLit lit) = hsLit2Expr lit
+hsPat2Expr (HsPList hspats) = hsPats2Expr hspats
+hsPat2Expr (HsPParen hspat) = hsPat2Expr hspat
+hsPat2Expr (HsPInfixApp p1 op p2)
+  =  App (App (Var $ hsQName2Str op) (hsPat2Expr p1)) (hsPat2Expr p2)
+hsPat2Expr HsPWildCard = Var "_"
+hsPat2Expr (HsPAsPat nm hspat)
+ =  App (App (Var "@") $ Var $ hsName2Str nm) $ hsPat2Expr hspat
+hsPat2Expr (HsPApp qnm hspats)  = PApp (hsQName2Str qnm) $ map hsPat2Expr hspats
+
 hsPat2Expr hsp = error ("hsPat2Expr NYIf "++show hsp)
+
+hsPats2Expr :: [HsPat] -> Expr
+hsPats2Expr []  = eNull
+hsPats2Expr (hspat:hspats)
+  = App (App eCons $ hsPat2Expr hspat) $ hsPats2Expr hspats
 \end{code}
 
 \subsection{Simplifying Parsed Matches}
@@ -137,7 +183,10 @@ hsPat2Expr hsp = error ("hsPat2Expr NYIf "++show hsp)
 \begin{code}
 hsMatch2Match :: HsMatch -> Match
 hsMatch2Match (HsMatch _ nm pats rhs decls)
-  = (hsName2Str nm, map hsPat2Expr pats, hsRhs2Expr rhs, map hsDecl2Decl decls)
+  = Match (hsName2Str nm)
+          (map hsPat2Expr pats)
+          (hsRhs2Expr rhs)
+          (map hsDecl2Decl decls)
 \end{code}
 
 \subsection{Simplifying Parsed Declarations}
@@ -149,8 +198,36 @@ hsDecl2Decl (HsFunBind hsMatches) = Fun $ map hsMatch2Match hsMatches
 hsDecl2Decl (HsPatBind _ hspat hsrhs hsdecls)
  = Bind (hsPat2Expr hspat) (hsRhs2Expr hsrhs) (map hsDecl2Decl hsdecls)
 
+-- ignore type signatures and declarations for now, just note name
+hsDecl2Decl (HsTypeSig _ hsn _)        = Type "::"
+hsDecl2Decl (HsTypeDecl _ hsn _ _) = Type $ hsName2Str hsn
+hsDecl2Decl (HsDataDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
+hsDecl2Decl (HsNewTypeDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
+
+hsDecl2Decl (HsInfixDecl _ _ _ _) = Syntax
 hsDecl2Decl hsd = error ("hsDecl2Decl NYIf "++show hsd)
 \end{code}
+
+\subsection{Simplifying Parsed Modules}
+
+\begin{code}
+hsModule2Mdl :: HsModule -> Mdl
+hsModule2Mdl (HsModule _ (Module nm) _ imports decls)
+  = Mdl nm (map hsImpDcl2Imp imports) (map hsDecl2Decl decls)
+
+hsImpDcl2Imp :: HsImportDecl -> Import
+hsImpDcl2Imp hsID
+ = Imp (hsMod2Str $ importModule hsID)
+       (hsModAs2MStr $ importAs hsID)
+
+hsMod2Str :: Module -> String
+hsMod2Str (Module str) = str
+
+hsModAs2MStr :: Maybe Module -> Maybe String
+hsModAs2MStr Nothing = Nothing
+hsModAs2MStr (Just m) = Just $ hsMod2Str m
+\end{code}
+
 
 \newpage
 \subsection{Examples}
