@@ -40,6 +40,8 @@ executables:
     dependencies:
     - reasonH
     - haskell-src
+    - directory
+    - filepath
 
 tests:
   reasonH-test:

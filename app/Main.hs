@@ -3,6 +3,9 @@ module Main where
 import Data.List
 import Data.Maybe
 
+import System.Directory
+import System.FilePath
+
 import REPL
 import AST
 import Matching
@@ -80,6 +83,7 @@ hreqEndTidy _ hreqs = return hreqs
 
 hreqCommands :: HReqCommands
 hreqCommands = [ cmdShowState
+               , showTheoryFiles
                , cmdShowLaws
                -- , cmdLoadHaskell -- deprecated for now.
                , cmdLoadTheory
@@ -111,6 +115,20 @@ showCurrThry (Just thry) = putStrLn ("Current Theory: "++theoryName thry)
 
 shlist strs = intercalate ", " strs
 
+showTheoryFiles :: HReqCmdDescr
+showTheoryFiles
+  = ( "tf"
+    , "show theory files"
+    , "show list of *.thr in /examples."
+    , showTFiles )
+
+showTFiles _ hreq
+  = do listing <- getDirectoryContents "./examples"
+       let thrFiles = filter isThr listing
+       putStrLn $ unlines thrFiles
+       return hreq
+
+isThr fp = takeExtension fp == ".thr"
 
 cmdShowLaws :: HReqCmdDescr
 cmdShowLaws
