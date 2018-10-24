@@ -208,6 +208,7 @@ data InductionScheme
 data Theorem
  = THEOREM {
      thmName :: String
+   , theorem :: Expr
    , strategy :: Strategy
    }
  deriving Show
@@ -389,7 +390,7 @@ parseTheorem pmode theory thrmName lno rest lns
 parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof"
 parseProof pmode theory thrmName goal (ln:lns)
   | gotReduce     =  do (strat,lns') <- parseReduction pmode rstrat lns
-                        let thry = THEOREM thrmName strat
+                        let thry = THEOREM thrmName goal strat
                         return ( thTheorems__ (++[thry]) theory, lns' )
   | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
