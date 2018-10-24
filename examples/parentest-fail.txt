@@ -1,0 +1,59 @@
+Checking theorem 'test'
+Strategy: reduce LHS to RHS
+goal= 1+(2+3) === (1+2)+3
+App
+ (App (Var "+")
+      (App (App (Var "=") (App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 2)) (LInt 3)))) (App (App (Var "+") (LInt 1)) (LInt 2))
+      ))
+ (LInt 3)
+
+1.e=
+App (App (Var "+") (App (App (Var "=") (App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 2)) (LInt 3)))) (App (App (Var "+") (LInt 1)) (LInt 2)))) (LInt 3)
+
+1.e0=   1+(2+3)
+App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 2)) (LInt 3))
+
+!!: incorrect first expression.
+
+checkCalc NYI
+e=
+
+App (App (Var "+") (App (App (Var "=") (App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 2)) (LInt 3)))) (App (App (Var "+") (LInt 1)) (LInt 2)))) (LInt 3)
+last
+
+=App (App (Var "+") (App (App (Var "+") (LInt 1)) (LInt 2))) (LInt 3)
+
+!!: incorrect last expression.
+
+
+
+App
+ (App
+   (Var "+")
+   (App 
+     (App
+       (Var "=")
+       (App
+         (App
+           (Var "+")
+           (LInt 1)
+         )
+         (App
+           (App
+             (Var "+")
+             (LInt 2)
+           )
+           (LInt 3)
+         )
+       )
+     )
+     (App
+       (App
+         (Var "+")
+         (LInt 1)
+       )
+       (LInt 2)
+     )
+   )
+ )
+ (LInt 3)
