@@ -64,13 +64,15 @@ parseExpr pmode restlns [] = pFail pmode 0 0 "no expression!"
 parseExpr pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (modstrf chunk) of
       ParseFailed _ msg  -> pFail pmode lno 1 msg
-      ParseOk hsmod -> return (getNakedExpression hsmod, restlns)
+      ParseOk hsmod -> return (getNakedExpression $ dbg "pE.hsmod:\n" hsmod, restlns)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
+                , "infix 1 ==="
                 , "nakedExpr = "++str ]
     modstrf chunk
       = unlines ( [ "module NakedExpr where"
+                  , "infix 1 ==="
                   , "nakedExpr = " ]
                   ++ map snd chunk )
 \end{code}
@@ -97,11 +99,11 @@ parseEquiv pmode restlns chunk@((lno,_):_)
   where
     modstrf [(_,str)]
       = unlines [ "module NakedExpr where"
-                , "infix 3 ==="
+                , "infix 1 === ; x === y = x == y"
                 , "nakedExpr = "++str ]
     modstrf chunk
       = unlines ( [ "module NakedExpr where"
-                  , "infix 3 ==="
+                  , "infix 1 === ; x === y = x == y"
                   , "nakedExpr = " ]
                   ++ map snd chunk )
 \end{code}

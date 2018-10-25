@@ -3,7 +3,7 @@ THEORY Parentheses
 
 THEOREM test
 
-       1+(2+3) === (1+2)+3
+      ( 1+(2+3) ) === ( (1+2)+3 )
 
 STRATEGY ReduceLHS
 

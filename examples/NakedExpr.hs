@@ -1,3 +1,3 @@
 module NakedExpr where
-
-nakedExpr = 1+2
+infix 1 ===; x === y = x == y
+nakedExpr = 1+(2+3) === (1+2)+3
