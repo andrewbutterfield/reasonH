@@ -16,7 +16,7 @@ jrel law [usage] [focus]
   l2r -- left-to-right (for laws of form lhs = rhs)
   r2l -- right-to-left (for laws of form lhs = rhs)
 4. focus (optional):
-                  -- if omitted for DEF, focus is only occurrence of name
-                  -- if omitted for anything else, the focus is at top-level
-  @ name          -- the only occurrence of that variable or function name
-  @ name i        -- ith in-order occurrence of variable or function name
+            -- if omitted for DEF, focus is first occurrence of name
+            -- if omitted for anything else, the focus is at top-level
+  @ name    -- the first occurrence of that name
+  @ name i  -- ith in-order occurrence of name

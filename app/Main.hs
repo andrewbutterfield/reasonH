@@ -255,8 +255,11 @@ theoremCheck [] hreqs
 
 theoremCheck (n:_) hreqs
   = do case currThry hreqs of
-         Nothing    ->  putStrLn "no current theory"
-         Just thry  ->  case findTheorem n $ thTheorems thry of
-                          Nothing   ->  putStrLn ("Theorem not found: "++n)
-                          Just thm  ->  showReport $ checkTheorem thm
+         Nothing
+           ->  putStrLn "no current theory"
+         Just thry
+           ->  case findTheorem n $ thTheorems thry of
+                 Nothing   ->  putStrLn ("Theorem not found: "++n)
+                 Just thm  ->  showReport $
+                     checkTheorem (hmods hreqs) (hthrys hreqs) thm
        return hreqs
