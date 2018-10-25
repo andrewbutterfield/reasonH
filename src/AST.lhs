@@ -10,7 +10,7 @@ module AST
   Expr(..), Match(..), Decl(..), Mdl(..)
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
   -- special variables:
-, eEq, eNull, eCons
+, eNull, eCons
 , pWild, pAs
 )
 where
@@ -127,20 +127,17 @@ hsLit2Expr lit = error ("hsLit2Expr NYIf "++show lit)
 
 \subsection{Simplifying Parsed Expressions}
 
-We convert all \texttt{===} to \texttt{=}.
 \begin{code}
-eEq = Var "="
 hsExp2Expr :: HsExp -> Expr
 hsExp2Expr (HsVar hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsCon hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsLit lit)  =  hsLit2Expr lit
 hsExp2Expr (HsInfixApp e1 op e2)
-  |  (dbg "e2e.opn = " opn) == "==="  =  App (App (dbg "eEq =" eEq)       (dbg "e2e.ex1 = " ex1)) $ dbg "e2e.ex2 = " ex2
-  |  otherwise     =  App (App (Var opn) ex1) ex2
+ =  App (App (Var opn) ex1) ex2
   where
-    opn = hsQOp2Str  $ dbg "e2e.op = " op
-    ex1 = hsExp2Expr $ dbg "e2e.e1 = " e1
-    ex2 = hsExp2Expr $ dbg "e2e.e2 = " e2
+    opn = hsQOp2Str  op
+    ex1 = hsExp2Expr e1
+    ex2 = hsExp2Expr e2
 hsExp2Expr (HsApp e1 e2)
   =  App (hsExp2Expr e1) (hsExp2Expr e2)
 hsExp2Expr (HsIf hse1 hse2 hse3)

@@ -369,8 +369,8 @@ parseIndSchema pmode theory typeName lno _
   = pFail pmode lno 0 "Incomplete Induction Schema"
 
 parseEquivChunk pmode lno rest lns
- | emptyLine rest  =  parseEquiv pmode restlns chunk
- | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
+ | emptyLine rest  =  parseEqual pmode restlns chunk
+ | otherwise       =  parseEqual pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
 

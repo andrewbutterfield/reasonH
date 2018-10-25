@@ -6,13 +6,13 @@ IMPORT-HASKELL FPC1
 
 THEOREM lengths_add
 
-            length (xs++ys)  ===  length xs ++ length ys
+            length (xs++ys)  ==  length xs ++ length ys
 
 STRATEGY induction List xs
 
 BASE  xs = []
 
-            length ([]++ys)  ===  length [] + length ys
+            length ([]++ys)  ==  length [] + length ys
 
 STRATEGY reduce-both
 
@@ -35,10 +35,10 @@ QED BASE
 STEP xs --> (x:xs)
 
 ASSUME
-             length (xs++ys)   ===   length xs ++ length ys
+             length (xs++ys)   ==   length xs ++ length ys
 
 SHOW
-         length ((x:xs)++ys)  ===  length (x:xs) ++ length ys
+         length ((x:xs)++ys)  ==  length (x:xs) ++ length ys
 
 STRATEGY reduce-both
 

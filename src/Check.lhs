@@ -47,7 +47,7 @@ checkStrategy goal (ReduceAll calc)
 
 checkStrategy goal (ReduceLHS calc)
   = rep "Strategy: reduce LHS to RHS"
-     `rjoin` checkFirst calc (lhsOf $ dbg "goal=" goal)
+     `rjoin` checkFirst calc (lhsOf goal)
      `rjoin` checkCalc calc
      `rjoin` checkLast calc (rhsOf goal)
 
@@ -71,19 +71,19 @@ checkStrategy _ _  = rep "checkStrategy: NYI for Induction"
 \begin{code}
 checkFirst :: Calculation -> Expr -> Report
 checkFirst (CALC e0 _) e
-  | (dbg "1.e0=" e0) == (dbg "1.e=" e)   =  rep "OK: correct first expression."
+  | e0 == e   =  rep "OK: correct first expression."
   | otherwise =  rep "!!: incorrect first expression."
 \end{code}
 
 \begin{code}
 lastE :: Calculation -> Expr
-lastE (CALC e [])  =  e
+lastE (CALC e [])     =  e
 lastE (CALC _ steps)  =  snd $ last steps
 
 checkLast :: Calculation -> Expr -> Report
 checkLast calc e
-  | (dbg "w.last=" (lastE calc)) == (dbg "w.e=" e)  =  rep "OK: correct last expression."
-checkLast _ _        =  rep "!!: incorrect last expression."
+  | (lastE calc) == e  =  rep "OK: correct last expression."
+checkLast _ _          =  rep "!!: incorrect last expression."
 \end{code}
 
 \begin{code}
@@ -101,6 +101,7 @@ checkSameLast cLHS cRHS
 \end{code}
 
 \begin{code}
+eEq = Var "=="
 equal :: Expr -> Expr -> Expr
 equal e1 e2 = App (App eEq e1) e2
 \end{code}

@@ -5,7 +5,7 @@ IMPORT-THEORY List
 
 THEOREM len3
 
-       length (10:20:30:[]) === 3
+       length (10:20:30:[]) == 3
 
 STRATEGY ReduceLHS
 
