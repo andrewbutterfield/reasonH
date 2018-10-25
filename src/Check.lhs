@@ -11,6 +11,7 @@ where
 
 import AST
 import Theory
+import Matching
 
 import Debug.Trace
 dbg msg x = trace (msg ++ show x) x
@@ -146,13 +147,25 @@ checkStep mdls thrys hyp goal (BECAUSE _ (D dnm i) howused what) goal'
  = case searchMods mdls dnm i of
      Nothing -> rep ("!!: Can't find definition "++dnm++"."++show i)
      Just defn
-       -> case findAndApplyDEFN defn goal what of
+       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal Top {-what-} of
            Nothing -> rep ("!!: Failed to apply defn: "++show what)
            Just goal''
              -> if goal'' == goal'
                  then rep ("OK: use of "++dnm++"."++show i++" is correct.")
                  else rep ("!!: use of "++dnm++"."++show i++" differs.")
 checkStep _ _ _ _ just _ = rep ("checkStep NYI for "++show (law just))
+\end{code}
+
+We need all names defined in imported haskell files:
+\begin{code}
+mdlsKnown = concat . map mdlKnown
+
+mdlKnown mdl = getDefined $ topdecls mdl
+
+getDefined [] = []
+getDefined (Fun (m:_)        : tdcls)  = fname m : getDefined tdcls
+getDefined (Bind (Var v) _ _ : tdcls)  = v       : getDefined tdcls
+getDefined (_                : tdcls)  =           getDefined tdcls
 \end{code}
 
 \begin{code}
@@ -201,17 +214,15 @@ This does an in-order traverse of the \texttt{goal} looking for
 the sub-expression defined by \texttt{what}.
 Once found, it will use \texttt{defn} to rewrite that sub-expression.
 \begin{code}
-findAndApplyDEFN :: Definition -> Expr -> Focus -> Maybe Expr
-findAndApplyDEFN defn goal Top = applyDEFN defn goal
-findAndApplyDEFN defn goal what = Nothing
+findAndApplyDEFN :: [String] -> Definition -> Expr -> Focus -> Maybe Expr
+findAndApplyDEFN knowns defn goal Top = applyDEFN knowns defn $ dbg "goal:\n" goal
+findAndApplyDEFN knowns defn goal what = Nothing
 \end{code}
 
 \begin{code}
-applyDEFN :: Definition -> Expr -> Maybe Expr
-applyDEFN (lhs,rhs,ldcls) expr
-  = case eMatch lhs expr of
+applyDEFN :: [String] -> Definition -> Expr -> Maybe Expr
+applyDEFN knowns (lhs,rhs,ldcls) expr
+  = case eMatch knowns (dbg "candidate:\n" expr) (dbg "pattern:\n" lhs) of
       Nothing -> Nothing
-      Just bind -> Nothing
-
-eMatch p c = Nothing
+      Just bind -> Just $ buildReplacement (dbg "bind:\n" bind) ldcls rhs
 \end{code}

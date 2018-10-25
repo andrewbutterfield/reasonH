@@ -1,0 +1,50 @@
+pattern:
+
+App (Var "length")
+    (App (App (Var ":")
+              (Var "_")
+         )
+         (Var "xs")
+    )
+
+goal/candidate:
+
+Been strangely modified!!!
+
+App (Var "length")
+    (App (App (Var ":")
+              (App (App (Var ":")
+                        (App (App (Var ":")
+                                  (LInt 10)
+                             )
+                             (LInt 20)
+                        )
+                   )
+                   (LInt 30)
+              )
+         )
+         (Var "[]")
+    )
+
+candidate:
+App (Var "length") (App (App (Var ":") (App (App (Var ":") (App (App (Var ":") (LInt 10)) (LInt 20))) (LInt 30))) (Var "[]"))
+
+bind:
+
+fromList [("xs",Var "[]")]
+
+
+theorem is OK
+
+App (App (Var "==")
+         (App (Var "length")
+              (App (App (Var ":") (LInt 10))
+                   (App (App (Var ":") (LInt 20))
+                        (App (App (Var ":") (LInt 30))
+                             (Var "[]")
+                        )
+                   )
+              )
+         )
+    )
+    (LInt 3)
