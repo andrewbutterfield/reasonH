@@ -1,0 +1,41 @@
+
+HsModule
+  (SrcLoc {srcFilename = "parentest.thr", srcLine = 1, srcColumn = 1})
+  (Module "NakedExpr")
+  Nothing
+  []
+  [ HsInfixDecl
+      (SrcLoc {srcFilename = "parentest.thr", srcLine = 2, srcColumn = 1})
+      HsAssocNone 1 [HsVarOp (HsSymbol "===")]
+  , HsPatBind
+      (SrcLoc {srcFilename = "parentest.thr", srcLine = 3, srcColumn = 1})
+      (HsPVar (HsIdent "nakedExpr"))
+      ( HsUnGuardedRhs
+          ( HsInfixApp
+            ( HsInfixApp
+                ( HsInfixApp
+                    (HsLit (HsInt 1))
+                    ( HsQVarOp (UnQual (HsSymbol "+")))
+                    ( HsParen
+                      ( HsInfixApp
+                        (HsLit (HsInt 2))
+                        (HsQVarOp (UnQual (HsSymbol "+")))
+                        (HsLit (HsInt 3))
+                      )
+                    )
+                )
+                (HsQVarOp (UnQual (HsSymbol "===")))
+                ( HsParen
+                  ( HsInfixApp
+                      (HsLit (HsInt 1))
+                      (HsQVarOp (UnQual (HsSymbol "+")))
+                      (HsLit (HsInt 2))
+                  )
+                )
+            )
+            (HsQVarOp (UnQual (HsSymbol "+")))
+            (HsLit (HsInt 3))
+          )
+        )
+        []
+  ]
