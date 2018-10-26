@@ -215,14 +215,14 @@ the sub-expression defined by \texttt{what}.
 Once found, it will use \texttt{defn} to rewrite that sub-expression.
 \begin{code}
 findAndApplyDEFN :: [String] -> Definition -> Expr -> Focus -> Maybe Expr
-findAndApplyDEFN knowns defn goal Top = applyDEFN knowns defn $ dbg "goal:\n" goal
+findAndApplyDEFN knowns defn goal Top = applyDEFN knowns defn goal
 findAndApplyDEFN knowns defn goal what = Nothing
 \end{code}
 
 \begin{code}
 applyDEFN :: [String] -> Definition -> Expr -> Maybe Expr
 applyDEFN knowns (lhs,rhs,ldcls) expr
-  = case eMatch knowns (dbg "candidate:\n" expr) (dbg "pattern:\n" lhs) of
+  = case eMatch knowns expr lhs of
       Nothing -> Nothing
-      Just bind -> Just $ buildReplacement (dbg "bind:\n" bind) ldcls rhs
+      Just bind -> Just $ buildReplacement bind ldcls rhs
 \end{code}
