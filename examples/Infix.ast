@@ -1,0 +1,170 @@
+Mdl {
+  mname = "Infix"
+, imps = []
+, topdecls =
+  [ Bind (Var "a") -- 100 + 200 + 300 + 400
+    (App
+      (App
+        (Var "+")
+        (App
+          (App
+            (Var "+")
+            (App
+              (App
+                (Var "+")
+                (LInt 100) )
+              (LInt 200) ) )
+          (LInt 300) ) )
+      (LInt 400) )
+    []  -- (((100+200)+300)+400)
+
+  , Bind (Var "b") -- [100] ++ [200] ++ [300] ++ [400]
+    (App
+      (App
+        (Var "++")
+        (App
+          (App
+            (Var "++")
+            (App
+              (App
+                (Var "++")
+                (App -- [100]
+                  (App
+                    (Var ":")
+                    (LInt 100) )
+                (Var "[]") ) )
+              (App -- [200]
+                (App
+                  (Var ":")
+                  (LInt 200))
+                (Var "[]"))))
+          (App  -- [300]
+            (App
+              (Var ":")
+              (LInt 300) )
+            (Var "[]"))))
+      (App -- [400]
+        (App
+          (Var ":")
+          (LInt 400))
+        (Var "[]") ) )
+    [] -- ((([100]++[200])++[300])++[40])
+
+  , Bind (Var "c") -- 100 : 200 : 300 : 400 : []
+    (App
+      (App
+        (Var ":")
+        (App
+          (App
+            (Var ":")
+            (App
+              (App
+                (Var ":")
+                (App
+                  (App
+                    (Var ":")
+                    (LInt 100) )
+                  (LInt 200)))
+              (LInt 300)))
+          (LInt 400)))
+      (Var "[]"))
+    [] -- (((100:200):300):400):[]
+
+  , Bind (Var "d") -- 1 + 2 * 3 + 4
+    (App
+      (App
+        (Var "+")
+        (App
+          (App
+            (Var "*")
+            (App
+              (App
+                (Var "+")
+                (LInt 1))
+              (LInt 2)))
+          (LInt 3)))
+        (LInt 4))
+    [] -- ((1+2)*3)+4
+
+  , Bind (Var "d1") -- 1 + (2*3) + 4
+    (App
+      (App
+        (Var "+")
+        (App
+          (App
+            (Var "+")
+            (LInt 1))
+          (App
+            (App
+              (Var "*")
+              (LInt 2))
+            (LInt 3))))
+       (LInt 4))
+    [] -- (1+(2*3))+4
+
+  , Bind (Var "d2") -- (1+2) * (3+4)
+    (App
+      (App
+        (Var "*")
+        (App
+          (App
+            (Var "+")
+            (LInt 1))
+          (LInt 2)))
+      (App
+        (App
+          (Var "+")
+          (LInt 3))
+        (LInt 4)))
+    [] -- (1+2)*(3+4)
+
+  , Bind (Var "e") -- 1 * 2 + 3 * 4
+    (App
+      (App
+        (Var "*")
+        (App
+          (App
+            (Var "+")
+            (App
+              (App
+                (Var "*")
+                (LInt 1))
+              (LInt 2)))
+          (LInt 3)))
+      (LInt 4))
+    [] -- ((1*2)+3)*4
+
+  , Bind (Var "e1") -- 1 * (2+3) * 4
+    (App
+      (App
+        (Var "*")
+        (App
+          (App
+            (Var "*")
+            (LInt 1))
+          (App
+            (App
+              (Var "+")
+              (LInt 2))
+            (LInt 3))))
+      (LInt 4))
+    [] -- (1*(2+3))*4
+
+  , Bind (Var "e2")  -- (1 * 2) + (3 *4)
+    (App
+      (App
+        (Var "+")
+        (App
+          (App
+            (Var "*")
+            (LInt 1))
+          (LInt 2)))
+      (App
+        (App
+          (Var "*")
+          (LInt 3))
+        (LInt 4)))
+    [] -- (1*2)+(3*4)
+
+  ]
+}
