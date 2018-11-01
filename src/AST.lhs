@@ -64,9 +64,14 @@ Then, declarations:
 data Decl
   = Fun [Match]
   | Bind Expr Expr [Decl]
-  | Syntax -- not relevant to this tool !
+  | Fixity String Int Assoc
   | Type String -- just noting name for now - to be addressed later
   deriving (Eq, Show)
+\end{code}
+
+Associativity: left, right or none:
+\begin{code}
+data Assoc = ANone | ALeft | ARight deriving (Eq,Show)
 \end{code}
 
 Finally, modules (ignoring exports)
@@ -89,6 +94,10 @@ data Import = Imp { imname :: String
 hsName2Str :: HsName -> String
 hsName2Str (HsIdent str)  = str
 hsName2Str (HsSymbol str) = str
+
+hsOpName :: HsOp -> String
+hsOpName (HsVarOp hn) = hsName2Str hn
+hsOpName (HsConOp hn) = hsName2Str hn
 
 hsSpcCon2Str :: HsSpecialCon -> String
 hsSpcCon2Str HsUnitCon  =  "()"
@@ -154,17 +163,45 @@ The \texttt{haskell-src} package does a very lazy parsing of infix operators
 that ignores operator precedence and treats every operator as left-associative.
 So
 \[
-x_1 \otimes_a x_2 \otimes_b x_2 \otimes \dots \otimes_y x_{n-1} \otimes_z x_n
+\texttt{e}
+=
+e_1 \otimes_1 e_2 \otimes_2 e_3 \otimes_3 \dots \otimes_{n-2} e_{n-1} \otimes_{n-1} e_n
 \]
-parses as%
+where $e_1$ is not an infix application, parses as%
 \footnote{
 So \texttt{x:y:z:[]} parses as $((x:y):z):[]$ !
 }%
 \[
-( \dots ((x_1 \otimes_a x_2) \otimes_b x_2) \otimes
-  \dots \otimes_y x_{n-1}) \otimes_z x_n
+e_? =
+( \dots ((e_1 \otimes_1 e_2) \otimes_2 e_3) \otimes_3
+  \dots \otimes_{n-2} e_{n-1}) \otimes_{n-1} e_n
 \]
 This needs to be fixed.
+It also explains why there is a \texttt{HsParen} constructor in \texttt{HsExp}!
+
+The first consequence is that the second argument for each operator
+can be independently converted,
+while the longest chain formed as long as first arguments are infix operators
+needs special handling.
+Let the function converting \texttt{HsExp} $h$ into \texttt{Expr} $a$
+be denoted by $\Sem{}$, so that $a =\Sem{h}$.
+So the example above should first be transformed into two lists as follows:
+\begin{eqnarray*}
+  && \Sem{e_?}
+\\ &=& \coz{expand $e_?$}
+\\ && \Sem{( \dots ((e_1 \otimes_1 e_2) \otimes_2 e_3) \otimes_3
+         \dots \otimes_{n-2} e_{n-1}) \otimes_{n-1} e_n}
+\\ &=& \coz{2nd arguments convert independently}
+\\ && ( \dots ((\Sem{e_1} \otimes_1 \Sem{e_2}) \otimes_2 \Sem{e_3}) \otimes_3
+       \dots \otimes_{n-2} \Sem{e_{n-1}}) \otimes_{n-1} \Sem{e_n}
+\\ &=& \coz{split out longest 1st-argument chain of operators}
+\\ && (~\seqof{\otimes_1,\otimes_2,\otimes_3 \dots \otimes_{n-2},\otimes_{n-1}}
+       ~,~
+        \seqof{e_1,e_2,e_3,\dots,e_{n-1},e_n}~)
+\end{eqnarray*}
+What we now want to do is to fuse together infix operations of highest precednece
+first, working out.
+Later we will revisit the right-associative operators.
 \begin{code}
 hsInfix2Expr op e1 e2
  =  App (App (Var opn) ex1) ex2
@@ -196,8 +233,7 @@ hsPat2Expr (HsPVar hsn) = Var $ hsName2Str hsn
 hsPat2Expr (HsPLit lit) = hsLit2Expr lit
 hsPat2Expr (HsPList hspats) = hsPats2Expr hspats
 hsPat2Expr (HsPParen hspat) = hsPat2Expr hspat
-hsPat2Expr (HsPInfixApp p1 op p2)
-  =  App (App (Var $ hsQName2Str op) (hsPat2Expr p1)) (hsPat2Expr p2)
+hsPat2Expr (HsPInfixApp p1 op p2) = hsPInfixApp2Expr op p1 p2
 hsPat2Expr HsPWildCard = pWild
 hsPat2Expr (HsPAsPat nm hspat)
  =  App (App pAs $ Var $ hsName2Str nm) $ hsPat2Expr hspat
@@ -209,6 +245,11 @@ hsPats2Expr :: [HsPat] -> Expr
 hsPats2Expr []  = eNull
 hsPats2Expr (hspat:hspats)
   = App (App eCons $ hsPat2Expr hspat) $ hsPats2Expr hspats
+\end{code}
+
+\begin{code}
+hsPInfixApp2Expr op p1 p2
+  =  App (App (Var $ hsQName2Str op) (hsPat2Expr p1)) (hsPat2Expr p2)
 \end{code}
 
 \subsection{Simplifying Parsed Matches}
@@ -237,8 +278,16 @@ hsDecl2Decl (HsTypeDecl _ hsn _ _) = Type $ hsName2Str hsn
 hsDecl2Decl (HsDataDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
 hsDecl2Decl (HsNewTypeDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
 
-hsDecl2Decl (HsInfixDecl _ _ _ _) = Syntax
+hsDecl2Decl (HsInfixDecl _ assoc p [op])
+  = Fixity (hsOpName op) p (hsAssoc2Assoc assoc)
 hsDecl2Decl hsd = error ("hsDecl2Decl NYIf "++show hsd)
+\end{code}
+
+\begin{code}
+hsAssoc2Assoc :: HsAssoc -> Assoc
+hsAssoc2Assoc HsAssocNone   =  ANone
+hsAssoc2Assoc HsAssocLeft   =  ALeft
+hsAssoc2Assoc HsAssocRight  =  ARight
 \end{code}
 
 \subsection{Simplifying Parsed Modules}
@@ -261,6 +310,6 @@ hsModAs2MStr Nothing = Nothing
 hsModAs2MStr (Just m) = Just $ hsMod2Str m
 \end{code}
 
-\subsection{Predude Fixity Declarations}
+\subsection{Prelude Fixity Declarations}
 We need to setup the Prelude fixities:
 \lstinputlisting[language=haskell2010]{doc/prelude-fixity.txt}

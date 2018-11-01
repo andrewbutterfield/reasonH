@@ -2,7 +2,7 @@
 %
 % (c) Andrew Butterfield, 2017
 %
-\def\reasonEq{\textsf{reasonEq}}
+\def\reasonH{\textit{\textsf{reasonH}}}
 
 % basic types
 \def\Bool{\mathbb{B}}
@@ -29,6 +29,11 @@
 \def\maplet#1#2{{#1}\mapsto{#2}}
 \def\override{\oplus}
 
+% semantics, proofs, calculations
+\def\semlbr{ [\!\,\![ }
+\def\semrbr{ ]\!\,\!] }
+\def\Sem#1{ \semlbr{#1}\semrbr }
+\def\coz#1{\text{``{#1}''}}
 
 % terms
 \def\fv{\mathsf{fv}}
@@ -40,7 +45,8 @@
 \def\L#1#2#3{\mathsf L~#1~#2~#3} \def\ll#1#2#3{\Lambda_{#1}~{#2}\bullet{#3}}
 \def\S#1#2#3{\mathsf S~#1~(#2,#3)^+} \def\ss#1#2#3{{#1}[#3/#2]}
 \def\I#1#2#3{\mathsf I~#1~#2~#3} \def\ii#1#2#3{{{\large{#1}}}_I~\{\cc{#2}{#3}\}}
-\def\T#1{\mathsf T~#1} \def\tt#1{{#1}}
+\def\T#1{\mathsf T~#1}
+% \def\tt#1{{#1}}
 
 
 %% UTP syntax
