@@ -153,12 +153,17 @@ hsExps2Expr (hse:hses)  =  App (App eCons $ hsExp2Expr hse) $ hsExps2Expr hses
 The \texttt{haskell-src} package does a very lazy parsing of infix operators
 that ignores operator precedence and treats every operator as left-associative.
 So
-\[x_1 \otimes_a x_2 \otimes_b x_2 \otimes \dots \otimes_y x_{n-1} \otimes_z x_n\]
+\[
+x_1 \otimes_a x_2 \otimes_b x_2 \otimes \dots \otimes_y x_{n-1} \otimes_z x_n
+\]
 parses as%
 \footnote{
 So \texttt{x:y:z:[]} parses as $((x:y):z):[]$ !
 }%
-\[(\dots((x_1 \otimes_a x_2) \otimes_b x_2) \otimes \dots \otimes_y x_{n-1}) \otimes_z x_n\]
+\[
+( \dots ((x_1 \otimes_a x_2) \otimes_b x_2) \otimes
+  \dots \otimes_y x_{n-1}) \otimes_z x_n
+\]
 This needs to be fixed.
 \begin{code}
 hsInfix2Expr op e1 e2
@@ -168,6 +173,7 @@ hsInfix2Expr op e1 e2
     ex1 = hsExp2Expr e1
     ex2 = hsExp2Expr e2
 \end{code}
+
 
 
 
@@ -254,3 +260,7 @@ hsModAs2MStr :: Maybe Module -> Maybe String
 hsModAs2MStr Nothing = Nothing
 hsModAs2MStr (Just m) = Just $ hsMod2Str m
 \end{code}
+
+\subsection{Predude Fixity Declarations}
+We need to setup the Prelude fixities:
+\lstinputlisting[language=haskell2010]{doc/prelude-fixity.txt}
