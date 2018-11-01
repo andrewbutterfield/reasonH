@@ -1,6 +1,6 @@
 \section{Abstract Syntax Tree}
 \begin{haskell}
-Copyright  Andrew Buttefield (c) 2017--18
+Copyright  Andrew Butterfield (c) 2017--18
 
 LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{haskell}
@@ -10,7 +10,7 @@ module AST
   Expr(..), Match(..), Decl(..), Mdl(..)
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
   -- special variables:
-, eEq, eNull, eCons
+, eNull, eCons
 , pWild, pAs
 )
 where
@@ -127,20 +127,12 @@ hsLit2Expr lit = error ("hsLit2Expr NYIf "++show lit)
 
 \subsection{Simplifying Parsed Expressions}
 
-We convert all \texttt{===} to \texttt{=}.
 \begin{code}
-eEq = Var "="
 hsExp2Expr :: HsExp -> Expr
 hsExp2Expr (HsVar hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsCon hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr (HsLit lit)  =  hsLit2Expr lit
-hsExp2Expr (HsInfixApp e1 op e2)
-  |  opn == "==="  =  App (App eEq       ex1) ex2
-  |  otherwise     =  App (App (Var opn) ex1) ex2
-  where
-    opn = hsQOp2Str  op
-    ex1 = hsExp2Expr e1
-    ex2 = hsExp2Expr e2
+hsExp2Expr (HsInfixApp e1 op e2)  =  hsInfix2Expr op e1 e2
 hsExp2Expr (HsApp e1 e2)
   =  App (hsExp2Expr e1) (hsExp2Expr e2)
 hsExp2Expr (HsIf hse1 hse2 hse3)
@@ -157,6 +149,27 @@ hsExps2Expr :: [HsExp] -> Expr
 hsExps2Expr []          =  eNull
 hsExps2Expr (hse:hses)  =  App (App eCons $ hsExp2Expr hse) $ hsExps2Expr hses
 \end{code}
+
+The \texttt{haskell-src} package does a very lazy parsing of infix operators
+that ignores operator precedence and treats every operator as left-associative.
+So
+\[x_1 \otimes_a x_2 \otimes_b x_2 \otimes \dots \otimes_y x_{n-1} \otimes_z x_n\]
+parses as%
+\footnote{
+So \texttt{x:y:z:[]} parses as $((x:y):z):[]$ !
+}%
+\[(\dots((x_1 \otimes_a x_2) \otimes_b x_2) \otimes \dots \otimes_y x_{n-1}) \otimes_z x_n\]
+This needs to be fixed.
+\begin{code}
+hsInfix2Expr op e1 e2
+ =  App (App (Var opn) ex1) ex2
+  where
+    opn = hsQOp2Str  op
+    ex1 = hsExp2Expr e1
+    ex2 = hsExp2Expr e2
+\end{code}
+
+
 
 For now, we view righthand-sides as expressions
 \begin{code}

@@ -85,7 +85,7 @@ hreqCommands :: HReqCommands
 hreqCommands = [ cmdShowState
                , showTheoryFiles
                , cmdShowLaws
-               -- , cmdLoadHaskell -- deprecated for now.
+               , cmdLoadHaskell -- deprecated for now.
                , cmdLoadTheory
                , cmdCheckTheorem
                ]
@@ -173,7 +173,7 @@ cmdLoadHaskell
   = ( "lh"
     , "load Haskell source"
     , unlines
-        [ "lh <fname>  -- load examples/<fname>.hs"
+        [ "lh <fname>  -- parse and dump AST for examples/<fname>.hs"
         ]
     , loadSource )
 
@@ -184,7 +184,8 @@ loadSource (fnroot:_) hreqs
         let aststr = show mdl
         putStrLn aststr
         writeFile ("examples/"++fnroot++".ast") aststr
-        return $ hmods__ (++[mdl]) hreqs
+        -- return $ hmods__ (++[mdl]) hreqs
+        return hreqs
 
 readHaskell fnroot
   = do let fname = fnroot ++ ".hs"
@@ -255,8 +256,11 @@ theoremCheck [] hreqs
 
 theoremCheck (n:_) hreqs
   = do case currThry hreqs of
-         Nothing    ->  putStrLn "no current theory"
-         Just thry  ->  case findTheorem n $ thTheorems thry of
-                          Nothing   ->  putStrLn ("Theorem not found: "++n)
-                          Just thm  ->  showReport $ checkTheorem thm
+         Nothing
+           ->  putStrLn "no current theory"
+         Just thry
+           ->  case findTheorem n $ thTheorems thry of
+                 Nothing   ->  putStrLn ("Theorem not found: "++n)
+                 Just thm  ->  showReport $
+                     checkTheorem (hmods hreqs) (hthrys hreqs) thm
        return hreqs

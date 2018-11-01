@@ -1,0 +1,66 @@
+Theorem as reported when Simple.thr is loaded:
+
+THEOREM {
+  thmName = "len3"
+, theorem =
+
+App  -- this is correct     (==) (length ( ((:)10) ( ((:)20) ( (:) 30 [] ) ) )) 3
+  (App
+    (Var "==")
+    (App
+      (Var "length")
+      (App
+        (App
+          (Var ":")
+          (LInt 10)
+        )
+        (App
+          (App
+            (Var ":")
+            (LInt 20)
+          )
+          (App
+            (App
+              (Var ":")
+              (LInt 30)
+            )
+            (Var "[]")
+          )
+        )
+      )
+    )
+  )
+  (LInt 3)
+
+
+, strategy = ReduceLHS (CALC {
+  goal =
+
+App
+  (Var "length")    length ( (....) [] ) -- looks wrong !!!!
+  (App
+    (App
+      (Var ":")
+      (App
+        (App
+          (Var ":")
+          (App
+            (App
+              (Var ":")
+              (LInt 10)
+            )
+            (LInt 20)
+          )
+        )
+        (LInt 30)
+      )
+    )
+    (Var "[]")
+  )
+
+
+, calcs =
+
+[(BECAUSE {jrel = JEq, law = D "length" 2, usage = L2R, focus = At "length" 0},App (App (Var "+") (LInt 1)) (App (Var "length") (App (App (Var ":") (App (App (Var ":") (LInt 20)) (LInt 30))) (Var "[]")))),(BECAUSE {jrel = JEq, law = D "length" 2, usage = L2R, focus = At "length" 0},App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (App (App (Var ":") (LInt 30)) (Var "[]"))))),(BECAUSE {jrel = JEq, law = D "length" 2, usage = L2R, focus = At "length" 0},App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (Var "[]"))))),(BECAUSE {jrel = JEq, law = D "length" 1, usage = L2R, focus = At "length" 0},App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (LInt 0)))),(BECAUSE {jrel = JEq, law = SMP, usage = Whole, focus = Top},LInt 3)]})
+
+}

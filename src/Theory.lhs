@@ -1,6 +1,6 @@
 \section{Theory}
 \begin{verbatim}
-Copyright  Andrew Buttefield (c) 2017--18
+Copyright  Andrew Butterfield (c) 2017--18
 
 LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{verbatim}
@@ -9,7 +9,8 @@ module Theory
 ( Theory(..), parseTheory
 , Theorem(..), findTheorem
 , Law(..), InductionScheme(..)
-, Strategy(..), Calculation(..), Justification(..)
+, Strategy(..), Calculation(..)
+, Justification(..), JRel(..), JLaw(..), Usage(..), Focus(..)
 )
 where
 
@@ -369,8 +370,8 @@ parseIndSchema pmode theory typeName lno _
   = pFail pmode lno 0 "Incomplete Induction Schema"
 
 parseEquivChunk pmode lno rest lns
- | emptyLine rest  =  parseEquiv pmode restlns chunk
- | otherwise       =  parseEquiv pmode lns     [(lno,rest)]
+ | emptyLine rest  =  parseEqual pmode restlns chunk
+ | otherwise       =  parseEqual pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
 
