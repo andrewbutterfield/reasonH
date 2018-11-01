@@ -197,10 +197,19 @@ So the example above should first be transformed into two lists as follows:
 \\ &=& \coz{split out longest 1st-argument chain of operators}
 \\ && (~\seqof{\otimes_1,\otimes_2,\otimes_3 \dots \otimes_{n-2},\otimes_{n-1}}
        ~,~
-        \seqof{e_1,e_2,e_3,\dots,e_{n-1},e_n}~)
+        \seqof{\Sem{e_1},\Sem{e_2},\Sem{e_3},\dots,\Sem{e_{n-1}},\Sem{e_n}}~)
 \end{eqnarray*}
-What we now want to do is to fuse together infix operations of highest precednece
-first, working out.
+
+Algorithm idea:
+\begin{verbatim}
+data E = A | B E op E
+split :: E -> ( [op], [E] )
+split A = ( [], [A] )
+split (B e1 op e2) = ( ops ++ [op] , es ++ [e2]) where (ops,es) = split e1
+\end{verbatim}
+
+What we now want to do is to fuse together infix operations of highest precedence
+first, and then work towards the lowest precedence operators.
 Later we will revisit the right-associative operators.
 \begin{code}
 hsInfix2Expr op e1 e2
