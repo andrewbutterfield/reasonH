@@ -16,6 +16,7 @@ module HParse
 where
 
 import Data.Char
+import qualified Data.Map as M
 
 import Language.Haskell.Parser
 import Language.Haskell.Pretty
@@ -81,7 +82,7 @@ mkNakedExprModule chunk
 getNakedExpr :: HsModule -> Expr
 getNakedExpr
  (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
-    = hsExp2Expr hsexp
+    = hsExp2Expr preludeFixTab hsexp
 getNakedExpr _ = hs42
 
 hs42 = LInt 42
@@ -104,7 +105,8 @@ getNakedEqual
  (HsModule _ _ _ _ [ _, HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
    = case hsexp of
        (HsInfixApp e1 (HsQVarOp (UnQual (HsSymbol "=="))) e2)
-          ->  (hsExp2Expr e1, hsExp2Expr e2)
+          ->  ( hsExp2Expr preludeFixTab e1
+              , hsExp2Expr preludeFixTab e2)
        _               ->  (hs42,hs42)
 getNakedEqual _  =   (hs42,hs42)
 \end{code}

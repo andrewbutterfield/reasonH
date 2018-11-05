@@ -7,17 +7,21 @@ LICENSE: BSD3, see file LICENSE at reasonEq root
 \begin{code}
 module AST
 (
-  Expr(..), Match(..), Decl(..), Mdl(..)
+  Expr(..), Match(..), Decl(..), Mdl(..), FixTab
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
   -- special variables:
 , eNull, eCons
 , pWild, pAs
+, preludeFixTab
 )
 where
 
 import Language.Haskell.Parser
 import Language.Haskell.Pretty
 import Language.Haskell.Syntax
+
+import Data.Map (Map)
+import qualified Data.Map as M
 
 import Debug.Trace
 dbg msg x = trace (msg ++ show x) x
@@ -73,6 +77,12 @@ Associativity: left, right or none:
 \begin{code}
 data Assoc = ANone | ALeft | ARight deriving (Eq,Show)
 \end{code}
+
+We want to be able to record fixity information:
+\begin{code}
+type FixTab = Map String (Int,Assoc)
+\end{code}
+
 
 Finally, modules (ignoring exports)
 \begin{code}
@@ -137,26 +147,27 @@ hsLit2Expr lit = error ("hsLit2Expr NYIf "++show lit)
 \subsection{Simplifying Parsed Expressions}
 
 \begin{code}
-hsExp2Expr :: HsExp -> Expr
-hsExp2Expr (HsVar hsq)  =  Var $ hsQName2Str hsq
-hsExp2Expr (HsCon hsq)  =  Var $ hsQName2Str hsq
-hsExp2Expr (HsLit lit)  =  hsLit2Expr lit
-hsExp2Expr (HsInfixApp e1 op e2)  =  hsInfix2Expr op e1 e2
-hsExp2Expr (HsApp e1 e2)
-  =  App (hsExp2Expr e1) (hsExp2Expr e2)
-hsExp2Expr (HsIf hse1 hse2 hse3)
-  = If (hsExp2Expr hse1) (hsExp2Expr hse2) (hsExp2Expr hse2)
-hsExp2Expr (HsParen hse)  =  hsExp2Expr hse
-hsExp2Expr (HsList hses)  =  hsExps2Expr hses
-hsExp2Expr hse  =  error ("hsExp2Expr NYIf "++show hse)
+hsExp2Expr :: FixTab -> HsExp -> Expr
+hsExp2Expr _ (HsVar hsq)  =  Var $ hsQName2Str hsq
+hsExp2Expr _ (HsCon hsq)  =  Var $ hsQName2Str hsq
+hsExp2Expr _ (HsLit lit)  =  hsLit2Expr lit
+hsExp2Expr fixtab (HsInfixApp e1 op e2)  =  hsInfix2Expr fixtab op e1 e2
+hsExp2Expr ftab (HsApp e1 e2)
+  =  App (hsExp2Expr ftab e1) (hsExp2Expr ftab e2)
+hsExp2Expr ftab (HsIf hse1 hse2 hse3)
+  = If (hsExp2Expr ftab hse1) (hsExp2Expr ftab hse2) (hsExp2Expr ftab hse2)
+hsExp2Expr fixtab (HsParen hse)  =  hsExp2Expr fixtab hse
+hsExp2Expr ftab (HsList hses)  =  hsExps2Expr ftab hses
+hsExp2Expr _ hse  =  error ("hsExp2Expr NYIf "++show hse)
 \end{code}
 
 \begin{code}
 eNull = Var "[]"
 eCons = Var ":"
-hsExps2Expr :: [HsExp] -> Expr
-hsExps2Expr []          =  eNull
-hsExps2Expr (hse:hses)  =  App (App eCons $ hsExp2Expr hse) $ hsExps2Expr hses
+hsExps2Expr :: FixTab -> [HsExp] -> Expr
+hsExps2Expr _ []          =  eNull
+hsExps2Expr ftab (hse:hses)
+  =  App (App eCons $ hsExp2Expr ftab hse) $ hsExps2Expr ftab hses
 \end{code}
 
 The \texttt{haskell-src} package does a very lazy parsing of infix operators
@@ -165,7 +176,8 @@ So
 \[
 \texttt{e}
 =
-e_1 \otimes_1 e_2 \otimes_2 e_3 \otimes_3 \dots \otimes_{n-2} e_{n-1} \otimes_{n-1} e_n
+e_1 \otimes_1 e_2 \otimes_2 e_3 \otimes_3
+  \dots \otimes_{n-2} e_{n-1} \otimes_{n-1} e_n
 \]
 where $e_1$ is not an infix application, parses as%
 \footnote{
@@ -212,12 +224,13 @@ What we now want to do is to fuse together infix operations of highest precedenc
 first, and then work towards the lowest precedence operators.
 Later we will revisit the right-associative operators.
 \begin{code}
-hsInfix2Expr op e1 e2
+hsInfix2Expr :: FixTab -> HsQOp -> HsExp -> HsExp -> Expr
+hsInfix2Expr fixtab op e1 e2
  =  App (App (Var opn) ex1) ex2
   where
     opn = hsQOp2Str  op
-    ex1 = hsExp2Expr e1
-    ex2 = hsExp2Expr e2
+    ex1 = hsExp2Expr fixtab e1
+    ex2 = hsExp2Expr fixtab e2
 \end{code}
 
 
@@ -225,12 +238,14 @@ hsInfix2Expr op e1 e2
 
 For now, we view righthand-sides as expressions
 \begin{code}
-hsRhs2Expr :: HsRhs -> Expr
-hsRhs2Expr (HsUnGuardedRhs hse)     =  hsExp2Expr hse
-hsRhs2Expr (HsGuardedRhss grdrhss)  =  GrdExpr $ map hsGrdRHs2Expr2 grdrhss
+hsRhs2Expr :: FixTab -> HsRhs -> Expr
+hsRhs2Expr ftab (HsUnGuardedRhs hse)     =  hsExp2Expr ftab hse
+hsRhs2Expr ftab (HsGuardedRhss grdrhss)
+  =  GrdExpr $ map (hsGrdRHs2Expr2 ftab) grdrhss
 
-hsGrdRHs2Expr2 :: HsGuardedRhs -> (Expr, Expr)
-hsGrdRHs2Expr2 (HsGuardedRhs _ grd rhs) = (hsExp2Expr grd, hsExp2Expr rhs)
+hsGrdRHs2Expr2 :: FixTab -> HsGuardedRhs -> (Expr, Expr)
+hsGrdRHs2Expr2 ftab (HsGuardedRhs _ grd rhs)
+ = (hsExp2Expr ftab grd, hsExp2Expr ftab rhs)
 \end{code}
 
 For now, we view patterns as expressions
@@ -264,39 +279,42 @@ hsPInfixApp2Expr op p1 p2
 \subsection{Simplifying Parsed Matches}
 
 \begin{code}
-hsMatch2Match :: HsMatch -> Match
-hsMatch2Match (HsMatch _ nm pats rhs decls)
+hsMatch2Match :: FixTab -> HsMatch -> Match
+hsMatch2Match fixtab (HsMatch _ nm pats rhs decls)
   = Match (hsName2Str nm)
           (map hsPat2Expr pats)
-          (hsRhs2Expr rhs)
-          (map hsDecl2Decl decls)
+          (hsRhs2Expr fixtab rhs)
+          (map (hsDecl2Decl fixtab) decls)
 \end{code}
 
 \subsection{Simplifying Parsed Declarations}
 
 \begin{code}
-hsDecl2Decl :: HsDecl -> Decl
-hsDecl2Decl (HsFunBind hsMatches) = Fun $ map hsMatch2Match hsMatches
+hsDecl2Decl :: FixTab -> HsDecl -> Decl
+hsDecl2Decl fixtab (HsFunBind hsMatches)
+  = Fun $ map (hsMatch2Match fixtab) hsMatches
 
-hsDecl2Decl (HsPatBind _ hspat hsrhs hsdecls)
- = Bind (hsPat2Expr hspat) (hsRhs2Expr hsrhs) (map hsDecl2Decl hsdecls)
+hsDecl2Decl ftab (HsPatBind _ hspat hsrhs hsdecls)
+ = Bind (hsPat2Expr hspat)
+        (hsRhs2Expr ftab hsrhs)
+        (map (hsDecl2Decl ftab) hsdecls)
 
 -- ignore type signatures and declarations for now, just note name
-hsDecl2Decl (HsTypeSig _ hsn _)        = Type "::"
-hsDecl2Decl (HsTypeDecl _ hsn _ _) = Type $ hsName2Str hsn
-hsDecl2Decl (HsDataDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
-hsDecl2Decl (HsNewTypeDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
+hsDecl2Decl fixtab (HsTypeSig _ hsn _)        = Type "::"
+hsDecl2Decl fixtab (HsTypeDecl _ hsn _ _) = Type $ hsName2Str hsn
+hsDecl2Decl fixtab (HsDataDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
+hsDecl2Decl fixtab(HsNewTypeDecl _ _ hsn _ _ _) = Type $ hsName2Str hsn
 
-hsDecl2Decl (HsInfixDecl _ assoc p [op])
+hsDecl2Decl fixtab (HsInfixDecl _ assoc p [op])
   = Fixity (hsOpName op) p (hsAssoc2Assoc assoc)
-hsDecl2Decl hsd = error ("hsDecl2Decl NYIf "++show hsd)
+hsDecl2Decl fixtab hsd = error ("hsDecl2Decl NYIf "++show hsd)
 \end{code}
 
 \begin{code}
-hsAssoc2Assoc :: HsAssoc -> Assoc
-hsAssoc2Assoc HsAssocNone   =  ANone
-hsAssoc2Assoc HsAssocLeft   =  ALeft
-hsAssoc2Assoc HsAssocRight  =  ARight
+hsAssoc2Assoc :: HsAssoc    ->  Assoc
+hsAssoc2Assoc HsAssocNone   =   ANone
+hsAssoc2Assoc HsAssocLeft   =   ALeft
+hsAssoc2Assoc HsAssocRight  =   ARight
 \end{code}
 
 \subsection{Simplifying Parsed Modules}
@@ -304,7 +322,10 @@ hsAssoc2Assoc HsAssocRight  =  ARight
 \begin{code}
 hsModule2Mdl :: HsModule -> Mdl
 hsModule2Mdl (HsModule _ (Module nm) _ imports decls)
-  = Mdl nm (map hsImpDcl2Imp imports) (map hsDecl2Decl decls)
+  = Mdl nm
+        (map hsImpDcl2Imp imports)
+        (map (hsDecl2Decl fixtab) decls)
+  where fixtab = buildFixTab preludeFixTab decls
 
 hsImpDcl2Imp :: HsImportDecl -> Import
 hsImpDcl2Imp hsID
@@ -319,6 +340,49 @@ hsModAs2MStr Nothing = Nothing
 hsModAs2MStr (Just m) = Just $ hsMod2Str m
 \end{code}
 
-\subsection{Prelude Fixity Declarations}
+\subsection{Fixity Handling}
+
+Building a fixity table on top of a pre-existing table.
+\begin{code}
+buildFixTab :: FixTab -> [HsDecl] -> FixTab
+buildFixTab fixtab []  = fixtab
+buildFixTab fixtab (HsInfixDecl _ assoc p [op] : decls)
+  =  buildFixTab (M.insert (hsOpName op) (p,hsAssoc2Assoc assoc) fixtab) decls
+buildFixTab fixtab (_ : decls)
+  =  buildFixTab fixtab decls
+\end{code}
+
+\subsubsection{Prelude Fixity Declarations}
 We need to setup the Prelude fixities:
-\lstinputlisting[language=haskell2010]{doc/prelude-fixity.txt}
+
+\begin{code}
+preludeFixTab
+ = M.fromList
+      [ ("!!",(9,ALeft))  -- infixl 9  !!
+      , (".",(9,ARight))  -- infixr 9  .
+
+        -- infixr 8  ^, ^^, **
+      , ("^",(8,ARight)), ("^^",(8,ARight)), ("**",(8,ARight))
+
+        -- infixl 7  *, /, `quot`, `rem`, `div`, `mod`
+      , ("*",(7,ALeft)), ("/",(7,ALeft))
+      , ("quot",(7,ALeft)), ("rem",(7,ALeft))
+      , ("div",(7,ALeft)), ("mod",(7,ALeft))
+
+      , ("+",(6,ALeft)), ("-",(6,ALeft))     -- infixl 6  +, -
+      , (":",(5,ARight)), ("++",(5,ARight))  -- infixr 5  : ++
+
+        -- infix  4  ==, /=, <, <=, >=, >, `elem`, `notElem`
+      , ("==",(4,ANone)), ("/=",(4,ANone))
+      , ("<",(4,ANone)), ("<=",(4,ANone)), (">=",(4,ANone)), (">",(4,ANone))
+      , ("elem",(4,ANone)), ("notElem",(4,ANone))
+
+      , ("&&",(3,ARight))                     -- infixr 3  &&
+      , ("||",(2,ARight))                     -- infixr 2  ||
+      , (">>",(1,ALeft)), (">>=",(1,ALeft))   -- infixl 1  >>, >>=
+      , ("=<<",(1,ARight))                    -- infixr 1  =<<
+
+        -- infixr 0  $, $!, `seq`
+      , ("$",(0,ARight)), ("$!",(0,ARight)), ("seq",(0,ARight))
+      ]
+\end{code}
