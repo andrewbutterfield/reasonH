@@ -216,7 +216,9 @@ Once found, it will use \texttt{defn} to rewrite that sub-expression.
 \begin{code}
 findAndApplyDEFN :: [String] -> Definition -> Expr -> Focus -> Maybe Expr
 findAndApplyDEFN knowns defn goal Top = applyDEFN knowns defn goal
-findAndApplyDEFN knowns defn goal what = Nothing
+findAndApplyDEFN knowns defn goal (At i nm)
+  = let paths = findAllNameUsage nm [] goal
+    in Nothing
 \end{code}
 
 \begin{code}
@@ -225,4 +227,41 @@ applyDEFN knowns (lhs,rhs,ldcls) expr
   = case eMatch knowns expr lhs of
       Nothing -> Nothing
       Just bind -> Just $ buildReplacement bind ldcls rhs
+\end{code}
+
+
+Consider we are looking for the $i$th occurence of name \texttt{f}
+in an expression, and it is found embedded somehere,
+and a function name applied to several arguments:
+\texttt{.... f x y z ....}.
+What we want returnd is a pointer to that full application,
+and mot just to \texttt{f}.
+However, this means that the location of \texttt{f}
+can be arbitrarily deep down the lefthand branch of an \texttt{App},
+as the above application will parse as $@ (@ (@~f~x)~y)~z$.
+If the application has path $\rho$, then the path to the
+occurence of $f$ will be $\rho \cat \seqof{1,1,1}$.
+So we can delete trailing ones to get up to the correct location in this case.
+However if \texttt{f} occurs in an if-expression (say),
+like \texttt{if f then x else y}, then if the if-expression has path $\rho$,
+then $f$ has path $\rho\cat\seqof{1}$, but this last one needs to remain.
+In effect we have to tag the indices to indicate if we are branching
+through an application ($@$) or some other kind of node (e.g., $if$).
+
+
+\begin{code}
+type Path = [Int] -- identify sub-expr by sequence of branch indices
+findAllNameUsage :: String -> Path -> Expr -> [Path]
+-- paths returned here are reversed, with deepest index first
+findAllNameUsage nm currPath (App (Var v) e2)
+  | nm == v  = currPath : findAllNameUsage nm (2:currPath) e2
+findAllNameUsage nm currPath (Var v) = if nm == v then [currPath] else []
+findAllNameUsage nm currPath (App e1 e2)
+  = findAllNameUsage nm (1:currPath) e1
+  ++ findAllNameUsage nm (2:currPath) e2
+findAllNameUsage nm currPath (If e1 e2 e3)
+  =  findAllNameUsage nm (1:currPath) e1
+  ++ findAllNameUsage nm (2:currPath) e2
+  ++ findAllNameUsage nm (3:currPath) e3
+findAllNameUsage nm currPath _ = []
 \end{code}
