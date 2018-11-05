@@ -5,6 +5,7 @@ Copyright  Andrew Butterfield (c) 2017--18
 LICENSE: BSD3, see file LICENSE at reasonEq root
 \end{haskell}
 \begin{code}
+{-# LANGUAGE PatternSynonyms #-}
 module AST
 (
   Expr(..), Match(..), Decl(..), Mdl(..), FixTab
@@ -151,7 +152,7 @@ hsExp2Expr :: FixTab -> HsExp -> Expr
 hsExp2Expr _ (HsVar hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr _ (HsCon hsq)  =  Var $ hsQName2Str hsq
 hsExp2Expr _ (HsLit lit)  =  hsLit2Expr lit
-hsExp2Expr fixtab (HsInfixApp e1 op e2)  =  hsInfix2Expr fixtab op e1 e2
+hsExp2Expr fixtab iapp@(HsInfixApp _ _ _)  =  hsInfix2Expr fixtab iapp
 hsExp2Expr ftab (HsApp e1 e2)
   =  App (hsExp2Expr ftab e1) (hsExp2Expr ftab e2)
 hsExp2Expr ftab (HsIf hse1 hse2 hse3)
@@ -169,6 +170,12 @@ hsExps2Expr _ []          =  eNull
 hsExps2Expr ftab (hse:hses)
   =  App (App eCons $ hsExp2Expr ftab hse) $ hsExps2Expr ftab hses
 \end{code}
+
+We want to match and build infix operators as simple unary applications:
+\begin{code}
+pattern InfixApp e1 op e2 = App (App (Var op) e1) e2
+\end{code}
+
 
 The \texttt{haskell-src} package does a very lazy parsing of infix operators
 that ignores operator precedence and treats every operator as left-associative.
@@ -210,31 +217,111 @@ So the example above should first be transformed into two lists as follows:
 \\ && (~\seqof{\otimes_1,\otimes_2,\otimes_3 \dots \otimes_{n-2},\otimes_{n-1}}
        ~,~
         \seqof{\Sem{e_1},\Sem{e_2},\Sem{e_3},\dots,\Sem{e_{n-1}},\Sem{e_n}}~)
+\\ &=& \coz{fuse adjacent terms of operators into sub-expression,
+            highest precedence first.}
+\\ && \coz{top-level list will be shorter, with lowest precedence operators}
+\\ && (~\seqof{\otimes_a,\otimes_b,\otimes_3 \dots \otimes_x,\otimes_y}
+       ~,~
+        \seqof{\Sem{e_a},\Sem{e_b},\Sem{e_c},\dots,\Sem{e_y},\Sem{e_z}}~)
+\\ &=& \coz{bottom-up, for each right-associate operator, twist the tree.}
+\\ && e  \quad \coz{ --- the true form of \texttt{e}}
 \end{eqnarray*}
+We will describe ``tree-twisting'' below.
 
-Algorithm idea:
-\begin{verbatim}
-data E = A | B E op E
-split :: E -> ( [op], [E] )
-split A = ( [], [A] )
-split (B e1 op e2) = ( ops ++ [op] , es ++ [e2]) where (ops,es) = split e1
-\end{verbatim}
-
-What we now want to do is to fuse together infix operations of highest precedence
-first, and then work towards the lowest precedence operators.
-Later we will revisit the right-associative operators.
 \begin{code}
-hsInfix2Expr :: FixTab -> HsQOp -> HsExp -> HsExp -> Expr
-hsInfix2Expr fixtab op e1 e2
- =  App (App (Var opn) ex1) ex2
-  where
-    opn = hsQOp2Str  op
-    ex1 = hsExp2Expr fixtab e1
-    ex2 = hsExp2Expr fixtab e2
+hsInfix2Expr :: FixTab -> HsExp -> Expr
+-- this is usually called with iapp being a HsInfixApp
+hsInfix2Expr fixtab iapp
+ =  e
+ where
+   (ops,es) = split fixtab iapp
+   prcf = fst . readFixTab fixtab
+   (ops',es') = pfusing prcf 9 (ops,es)
+   assf = snd . readFixTab fixtab
+   e = twist prcf assf $ head es' -- won't be empty
 \end{code}
 
+We use \texttt {split} to perform the 2nd argument conversion and splitting
+\begin{eqnarray*}
+  && \Sem{( \dots ((e_1 \otimes_1 e_2) \otimes_2 e_3) \otimes_3
+         \dots \otimes_{n-2} e_{n-1}) \otimes_{n-1} e_n}
+\\ &=& \coz{2nd arguments convert independently}
+\\ && ( \dots ((\Sem{e_1} \otimes_1 \Sem{e_2}) \otimes_2 \Sem{e_3}) \otimes_3
+       \dots \otimes_{n-2} \Sem{e_{n-1}}) \otimes_{n-1} \Sem{e_n}
+\\ &=& \coz{split out longest 1st-argument chain of operators}
+\\ && (~\seqof{\otimes_1,\otimes_2,\otimes_3 \dots \otimes_{n-2},\otimes_{n-1}}
+       ~,~
+        \seqof{\Sem{e_1},\Sem{e_2},\Sem{e_3},\dots,\Sem{e_{n-1}},\Sem{e_n}}~)
+\end{eqnarray*}
+\begin{code}
+split :: FixTab -> HsExp -> ( [String], [Expr] )
+
+-- split (B e1 op e2) = ( ops ++ [op] , es ++ [e2]) where (ops,es) = split e1
+split ftab (HsInfixApp hse1 hsop hse2)
+  = (ops++[op],es++[hsExp2Expr ftab hse2])
+  where
+    op        =  hsQOp2Str hsop
+    (ops,es)  =  split ftab hse1
+
+-- split a@(A _) = ( [], [a] )
+split ftab hsexp = ([],[hsExp2Expr ftab hsexp])
+\end{code}
+
+We then proceed to fuse together operators of highest precedence with
+their neighbouring expressions, and keep repeating until the lowest precedence
+have themselves been fused.
+\begin{eqnarray*}
+   && (~\seqof{\otimes_1,\otimes_2,\otimes_3 \dots \otimes_{n-2},\otimes_{n-1}}
+       ~,~
+        \seqof{\Sem{e_1},\Sem{e_2},\Sem{e_3},\dots,\Sem{e_{n-1}},\Sem{e_n}}~)
+\\ &=& \coz{fuse adjacent terms of operators into sub-expression,
+            highest precedence first.}
+\\ && \coz{top-level list will be shorter, with lowest precedence operators}
+\\ && (~\seqof{\otimes_a,\otimes_b,\otimes_3 \dots \otimes_x,\otimes_y}
+       ~,~
+        \seqof{\Sem{e_a},\Sem{e_b},\Sem{e_c},\dots,\Sem{e_y},\Sem{e_z}}~)
+\end{eqnarray*}
+\begin{code}
+pfuse :: (String -> Int) -> Int -> [String] -> [Expr] -> ([String],[Expr])
+pfuse _ p [] [e] = ([],[e])
+pfuse prcf p [op] [e1,e2]
+  | p == prcf op  =  ([],[InfixApp e1 op e2])
+  | otherwise  =  ([op],[e1,e2])
+pfuse prcf p (op:ops) (e1:e2:es)
+  | p == prcf op  =  pfuse prcf p ops (InfixApp e1 op e2 : es)
+  | otherwise     =  (op:ops',e1:es')
+  where (ops',es') = pfuse prcf p ops (e2:es)
+
+pfusing :: (String -> Int) -> Int -> ([String],[Expr]) -> ([String],[Expr])
+pfusing _ (-1) oes = oes
+pfusing prcf p (ops,es) = pfusing prcf (p-1) $ pfuse prcf p ops es
+\end{code}
+
+We now get to the point were we look for trees built with right-associative
+operators, that will still be in left-associative form.
+We have to ``twist'' these trees into right-associative form.
+At the top-level, we process binary sub-expressions first,
+and then twist the top result.
+\begin{code}
+-- -- we assume everything is left-infix to start.
+
+-- InfixApp op e1 e2
+twist :: (String -> Int) -> (String -> Assoc) -> Expr -> Expr
+twist prcf assf (InfixApp e1 op e2)
+  = twist' prcf assf (InfixApp (twist prcf assf e1) op (twist prcf assf e2))
+twist prcf assf e = e
+
+twist' prcf assf (InfixApp (InfixApp e1 op1 e2) op2 e3)
+  | assf op1 == ARight && assf op2 == ARight && prcf op1 == prcf op2
+    = InfixApp e1 op1 (insSE prcf assf op2 e2 e3 )
+twist' _ _ e = e
 
 
+insSE prcf assf op2 (InfixApp e4 op3 e5) e3
+  | assf op3 == ARight && prcf op2 == prcf op3
+    = InfixApp e4 op3 (insSE prcf assf op2 e5 e3)
+insSE  _ _ op2 e2 e3 = InfixApp e2 op2 e3
+\end{code}
 
 For now, we view righthand-sides as expressions
 \begin{code}
@@ -257,7 +344,8 @@ hsPat2Expr (HsPVar hsn) = Var $ hsName2Str hsn
 hsPat2Expr (HsPLit lit) = hsLit2Expr lit
 hsPat2Expr (HsPList hspats) = hsPats2Expr hspats
 hsPat2Expr (HsPParen hspat) = hsPat2Expr hspat
-hsPat2Expr (HsPInfixApp p1 op p2) = hsPInfixApp2Expr op p1 p2
+hsPat2Expr (HsPInfixApp p1 op p2)
+  =  InfixApp (hsPat2Expr p1) (hsQName2Str op) (hsPat2Expr p2)
 hsPat2Expr HsPWildCard = pWild
 hsPat2Expr (HsPAsPat nm hspat)
  =  App (App pAs $ Var $ hsName2Str nm) $ hsPat2Expr hspat
@@ -269,11 +357,6 @@ hsPats2Expr :: [HsPat] -> Expr
 hsPats2Expr []  = eNull
 hsPats2Expr (hspat:hspats)
   = App (App eCons $ hsPat2Expr hspat) $ hsPats2Expr hspats
-\end{code}
-
-\begin{code}
-hsPInfixApp2Expr op p1 p2
-  =  App (App (Var $ hsQName2Str op) (hsPat2Expr p1)) (hsPat2Expr p2)
 \end{code}
 
 \subsection{Simplifying Parsed Matches}
@@ -350,6 +433,15 @@ buildFixTab fixtab (HsInfixDecl _ assoc p [op] : decls)
   =  buildFixTab (M.insert (hsOpName op) (p,hsAssoc2Assoc assoc) fixtab) decls
 buildFixTab fixtab (_ : decls)
   =  buildFixTab fixtab decls
+\end{code}
+
+Looking up a fixity table:
+\begin{code}
+readFixTab :: FixTab -> String -> (Int,Assoc)
+readFixTab fixtab op
+  =  case M.lookup op fixtab of
+      Nothing   ->  (9,ALeft)  -- see H2010 Report, §4.4.2
+      Just res  ->  res
 \end{code}
 
 \subsubsection{Prelude Fixity Declarations}

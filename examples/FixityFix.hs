@@ -27,7 +27,7 @@ fixfixity a@(A _)  =  a
 fixfixity (B e1 op e2) = fix' (B (fixfixity e1) op (fixfixity e2))
 
 
-fix' (B b@(B e1 op1 e2) op2 e3)
+fix' (B (B e1 op1 e2) op2 e3)
  | ass op1 == AR && ass op2 == AR && prec op1 == prec op2
     = B e1 op1 (insSE op2 e2 e3 )
 fix' e = e

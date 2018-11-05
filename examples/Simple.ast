@@ -1,0 +1,164 @@
+THEORY {
+  theoryName = "Simple"
+, thImports = ["Arithmetic","List"]
+, hkImports = ["List"], thLaws = []
+, thIndScheme = []
+, thTheorems =
+    [ THEOREM {
+        thmName = "len3"
+      , theorem =
+          App
+            (App
+              (Var "==")
+              (App
+                (Var "length")
+                (App
+                  (App
+                    (Var ":")
+                    (LInt 10)
+                  )
+                  (App
+                    (App
+                      (Var ":")
+                      (LInt 20)
+                    )
+                    (App
+                      (App
+                        (Var ":")
+                        (LInt 30)
+                      )
+                      (Var "[]")
+                    )
+                  )
+                )
+              )
+            )
+            (LInt 3)
+      , strategy
+          = ReduceLHS
+            ( CALC {
+                goal = App
+                         (Var "length")
+                         (App
+                           (App
+                             (Var ":")
+                             (LInt 10)
+                           )
+                           (App
+                             (App
+                               (Var ":")
+                               (LInt 20)
+                             )
+                             (App
+                               (App
+                                 (Var ":")
+                                 (LInt 30)
+                               )
+                               (Var "[]")
+                             )
+                           )
+                         )
+              , calcs =
+                   [ ( BECAUSE { jrel = JEq, law = D "length" 2, usage = L2R
+                               , focus = At "length" 0 }
+                     , App
+                         (App
+                           (Var "+")
+                           (LInt 1)
+                         )
+                         (App
+                           (Var "length")
+                           (App
+                             (App
+                               (Var ":")
+                               (LInt 20)
+                             )
+                             (App
+                               (App
+                                 (Var ":")
+                                 (LInt 30)
+                               )
+                               (Var "[]")
+                             )
+                           )
+                         )
+                     )
+                   , ( BECAUSE { jrel = JEq, law = D "length" 2, usage = L2R
+                               , focus = At "length" 0}
+                     , App
+                         (App
+                           (Var "+")
+                           (LInt 1)
+                         )
+                         (App
+                           (App
+                             (Var "+")
+                             (LInt 1)
+                           )
+                           (App
+                             (Var "length")
+                             (App
+                               (App
+                                 (Var ":")
+                                 (LInt 30)
+                               )
+                               (Var "[]")
+                             )
+                           )
+                         )
+                     )
+                   , ( BECAUSE { jrel = JEq, law = D "length" 2, usage = L2R
+                               , focus = At "length" 0}
+                     , App
+                         (App
+                           (Var "+")
+                           (LInt 1)
+                         )
+                         (App
+                           (App
+                             (Var "+")
+                             (LInt 1)
+                           )
+                           (App
+                             (App
+                               (Var "+")
+                               (LInt 1)
+                             )
+                             (App
+                               (Var "length")
+                               (Var "[]")
+                             )
+                           )
+                         )
+                     )
+                   , ( BECAUSE { jrel = JEq, law = D "length" 1, usage = L2R
+                               , focus = At "length" 0}
+                     , App
+                         (App
+                           (Var "+")
+                           (LInt 1)
+                         )
+                         (App
+                           (App
+                             (Var "+")
+                             (LInt 1)
+                           )
+                           (App
+                             (App 
+                               (Var "+")
+                               (LInt 1)
+                             )
+                             (LInt 0)
+                           )
+                         )
+                     )
+                   , ( BECAUSE { jrel = JEq, law = SMP, usage = Whole
+                               , focus = Top}
+                     , LInt 3
+                     )
+                   ]
+              }
+            )
+       }
+    ]
+}
