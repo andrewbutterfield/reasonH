@@ -143,16 +143,23 @@ This is where all the heavy lifting is done:
 \begin{code}
 checkStep :: [Mdl] -> [Theory] -> Expr -> Expr -> Justification -> Expr
           -> Report
+
 checkStep mdls thrys hyp goal (BECAUSE _ (D dnm i) howused what) goal'
+-- need to modify this based on howused !!!!
  = case searchMods mdls dnm i of
      Nothing -> rep ("!!: Can't find definition "++dnm++"."++show i)
      Just defn
-       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal Top {-what-} of
+       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal what of
            Nothing -> rep ("!!: Failed to apply defn: "++show what)
            Just goal''
              -> if goal'' == goal'
                  then rep ("OK: use of "++dnm++"."++show i++" is correct.")
                  else rep ("!!: use of "++dnm++"."++show i++" differs.")
+
+checkStep mdls thrys hyp goal (BECAUSE _ SMP _ _) goal'
+  | exprSIMP goal == goal'  =  rep ("OK: use of SIMP is correct.")
+  | otherwise               =  rep ("!!: use of SIMP differs.")
+
 checkStep _ _ _ _ just _ = rep ("checkStep NYI for "++show (law just))
 \end{code}
 
@@ -223,16 +230,15 @@ findAndApplyDEFN knowns defn goal (At nm i)
          -> case getIth i paths of
              Nothing -> Nothing
              Just path -> applyAtPathFocus
-                              (map fst $ dropWhile isApp1 path)
                               (applyDEFN knowns defn)
+                              (reverse $ map fst $ dropWhile isApp1 path)
                               goal
   where
-    getIth _ []      =  Nothing
-    getIth 1 (x:_)   =  Just x
-    getIth n (_:xs)  =  getIth (n-1) xs
     isApp1 (1,AppB)  =  True
     isApp1 _         =  False
 \end{code}
+
+
 
 \begin{code}
 applyDEFN :: [String] -> Definition -> Expr -> Maybe Expr
@@ -241,7 +247,6 @@ applyDEFN knowns (lhs,rhs,ldcls) expr
       Nothing -> Nothing
       Just bind -> Just $ buildReplacement bind ldcls rhs
 \end{code}
-
 
 Consider we are looking for the $i$th occurrence of name \texttt{f}
 in an expression, and it is found embedded somehere,
@@ -269,18 +274,28 @@ type Branch = (Int,ExprBranches)
 type Path = [Branch] -- identify sub-expr by sequence of branch indices
 findAllNameUsage :: String -> Path -> Expr -> [Path]
 -- paths returned here are reversed, with deepest index first
+
 findAllNameUsage nm currPath (App (Var v) e2)
   | nm == v  = currPath : findAllNameUsage nm ((2,AppB):currPath) e2
+
 findAllNameUsage nm currPath (Var v) = if nm == v then [currPath] else []
+
 findAllNameUsage nm currPath (App e1 e2)
   =  findAllNameUsage nm ((1,AppB):currPath) e1
   ++ findAllNameUsage nm ((2,AppB):currPath) e2
+
 findAllNameUsage nm currPath (If e1 e2 e3)
   =  findAllNameUsage nm ((1,OtherB):currPath) e1
   ++ findAllNameUsage nm ((2,OtherB):currPath) e2
   ++ findAllNameUsage nm ((3,OtherB):currPath) e3
+
 findAllNameUsage nm currPath (GrdExpr grds)
   = concat $ map (findGuardNameUsage nm currPath) $ zip [1..] grds
+
+findAllNameUsage _ _ (LBool _) =  []
+findAllNameUsage _ _ (LInt  _) =  []
+findAllNameUsage _ _ (LChar _) =  []
+
 findAllNameUsage nm currPath e = error ("findAllNameUsage NYIf "++show e)
 \end{code}
 
@@ -292,6 +307,75 @@ findGuardNameUsage nm currPath (i,(grd,res))
 \end{code}
 
 \begin{code}
-applyAtPathFocus :: [Int] -> (Expr -> Maybe Expr) -> Expr -> Maybe Expr
-applyAtPathFocus path apply goal = Nothing
+getIth :: Int -> [a] -> Maybe a
+getIth _ []      =  Nothing
+getIth 1 (x:_)   =  Just x
+getIth n (_:xs)  =  getIth (n-1) xs
+
+replIth :: Int -> a -> [a] -> Maybe [a]
+replIth _ _ []       =  Nothing
+replIth 1 x' (x:xs)  =  Just (x':xs)
+replIth n x' (x:xs)  =  do xs' <- replIth (n-1) x' xs
+                           return (x:xs')
+\end{code}
+
+\begin{code}
+applyAtPathFocus :: (Expr -> Maybe Expr) -> [Int] -> Expr -> Maybe Expr
+applyAtPathFocus replace []    goal = replace goal
+applyAtPathFocus replace (i:is) (App e1 e2)
+  | i == 1  =  do e1' <- applyAtPathFocus replace is e1
+                  return $ App e1' e2
+  | i == 2  =  do e2' <- applyAtPathFocus replace is e2
+                  return $ App e1 e2'
+applyAtPathFocus replace (i:is) (If e1 e2 e3)
+  | i == 1  =  do e1' <- applyAtPathFocus replace is e1
+                  return $ If e1' e2 e3
+  | i == 2  =  do e2' <- applyAtPathFocus replace is e2
+                  return $ If e1 e2' e3
+  | i == 3  =  do e3' <- applyAtPathFocus replace is e3
+                  return $ If e1 e2 e3'
+applyAtPathFocus replace (i:j:is) (GrdExpr eps)
+  = do (e1,e2) <- getIth i eps
+       if      j == 1 then do e1'   <-  applyAtPathFocus replace is e1
+                              eps'  <-  replIth i (e1',e2) eps
+                              return $ GrdExpr eps'
+       else if j == 2 then do e2'   <-  applyAtPathFocus replace is e2
+                              eps'  <-  replIth i (e1,e2') eps
+                              return $ GrdExpr eps'
+       else Nothing
+applyAtPathFocus replace (i:is) (Let dcls e)   =  Nothing
+applyAtPathFocus replace (i:is) (PApp nm es)   =  Nothing
+
+applyAtPathFocus replace (i:is) goal = Nothing
+\end{code}
+
+
+
+
+Builtin-simplifier
+\begin{code}
+exprSIMP :: Expr -> Expr
+exprSIMP (InfixApp e1 op e2)  =  applyOp op (exprSIMP e1) (exprSIMP e2)
+exprSIMP (App e1 e2)          =  App (exprSIMP e1) (exprSIMP e2)
+exprSIMP (If e1 e2 e3)        =  If (exprSIMP e1) (exprSIMP e2) (exprSIMP e3)
+exprSIMP (GrdExpr eps)        =  GrdExpr $ map exprSIMP2 eps
+exprSIMP (Let dcls e)         =  Let dcls $ exprSIMP e
+exprSIMP (PApp nm es)         =  PApp nm $ map exprSIMP es
+exprSIMP e                    =  e
+
+exprSIMP2 (e1,e2)             =  (exprSIMP e1,exprSIMP e2)
+\end{code}
+
+The fun part:
+\begin{code}
+applyOp "+"  (LInt x) (LInt y)  =  LInt  (x+y)
+applyOp "-"  (LInt x) (LInt y)  =  LInt  (x-y)
+applyOp "*"  (LInt x) (LInt y)  =  LInt  (x*y)
+applyOp "==" (LInt x) (LInt y)  =  LBool (x==y)
+applyOp "/=" (LInt x) (LInt y)  =  LBool (x/=y)
+applyOp "<"  (LInt x) (LInt y)  =  LBool (x<y)
+applyOp "<=" (LInt x) (LInt y)  =  LBool (x<=y)
+applyOp ">"  (LInt x) (LInt y)  =  LBool (x>y)
+applyOp ">=" (LInt x) (LInt y)  =  LBool (x>=y)
+applyOp op e1 e2 = InfixApp e1 op e2
 \end{code}

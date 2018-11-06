@@ -10,6 +10,7 @@ module AST
 (
   Expr(..), Match(..), Decl(..), Mdl(..), FixTab
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
+, pattern InfixApp
   -- special variables:
 , eNull, eCons
 , pWild, pAs

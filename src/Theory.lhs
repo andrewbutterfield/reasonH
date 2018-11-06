@@ -605,12 +605,12 @@ Seen law and possible usage, looking for optional focus.
 parseFocus pmode lno jr jlaw u []
                                  =  return $ BECAUSE jr jlaw u $ defFocus jlaw
 parseFocus pmode lno jr jlaw u [w]
-                                 =  return $ BECAUSE jr jlaw u $ At w 0
+                                 =  return $ BECAUSE jr jlaw u $ At w 1
 parseFocus pmode lno jr jlaw u (w1:w2:_)
   | all isDigit w2               =  return $ BECAUSE jr jlaw u $ At w1 $ read w2
-  | otherwise                    =  return $ BECAUSE jr jlaw u $ At w1 0
+  | otherwise                    =  return $ BECAUSE jr jlaw u $ At w1 1
 
-defFocus (D n _)  =  At n 0
+defFocus (D n _)  =  At n 1
 defFocus _        =  Top
 \end{code}
 
