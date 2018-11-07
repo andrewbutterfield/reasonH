@@ -23,3 +23,54 @@ length (10:20:30:[])
 3
 
 QED
+
+
+THEOREM lengths_add_base
+
+            length ([]++ys)  ==  length [] + length ys
+
+STRATEGY ReduceBoth
+
+LHS
+
+length ([]++ys)
+ = DEF ++.1
+length ys
+
+RHS
+
+length [] + length ys
+ = DEF length.1 @ length 1
+0 + length ys
+ = LAW add_left_zero l2r
+length ys
+
+QED
+
+
+
+
+THEOREM lengths_add_ind
+         length ((x:xs)++ys)  ==  length (x:xs) ++ length ys
+
+STRATEGY ReduceBoth
+
+LHS
+
+length ((x:xs)++ys)
+ = DEF ++.2
+length (x:(xs++ys))
+ = DEF length.2
+1 + length (xs++ys)
+
+RHS
+
+length (x:xs) ++ length ys
+ = DEF length.2 @ length 1
+(1 + length xs) ++ length ys
+ = LAW add_assoc l2r
+1 + (length xs ++ length ys)
+ = INDHYP r2l @ ++ 1
+1 + length (xs++ys)
+
+QED

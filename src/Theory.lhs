@@ -276,12 +276,10 @@ parameter,
 breaking input into numbered lines
 and starting the proper parsing.
 \begin{code}
-parseTheory :: ParseMode -> String -> ParseResult Theory
+parseTheory :: Monad m => ParseMode -> String -> m Theory
 parseTheory pmode str
-  = case theoryParser pmode theory0 $ zip [1..] $ lines str of
-      But msgs  ->  ParseFailed (SrcLoc (parseFilename pmode) 1 1)
-                      $ unlines' msgs
-      Yes (thry,_) -> ParseOk thry
+  = do (thry,_) <- theoryParser pmode theory0 $ zip [1..] $ lines str
+       return thry
 
 theory0 = THEORY { theoryName = "?", thImports = [], hkImports = []
                  , thLaws = [], thIndScheme = [], thTheorems = [] }
@@ -392,7 +390,10 @@ parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof
 parseProof pmode theory thrmName goal (ln:lns)
   | gotReduce     =  do (strat,lns') <- parseReduction pmode rstrat lns
                         let thry = THEOREM thrmName goal strat
-                        return ( thTheorems__ (++[thry]) theory, lns' )
+                        let theory' = thTheorems__ (++[thry]) theory
+                        -- this code should be refactored so that
+                        -- parseProof need not know what called it....
+                        parseRest pmode theory' lns'
   | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
@@ -419,6 +420,7 @@ parseRedStrat str
 }
 \begin{code}
 parseReduction pmode (ReduceBoth _ _) lns
+ -- expect LHS
  = pFail pmode 0 0 "parseReduction ReduceBoth NYI"
 \end{code}
 

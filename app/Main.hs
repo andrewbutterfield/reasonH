@@ -5,7 +5,9 @@ import Data.Maybe
 
 import System.Directory
 import System.FilePath
+import Control.Exception
 
+import Utilities
 import REPL
 import AST
 import Matching
@@ -204,24 +206,22 @@ cmdLoadTheory
 
 loadTheory [] hreqs = putStrLn "no file given" >> return hreqs
 loadTheory (fnroot:_) hreqs
-  = do theory <- readTheory fnroot
-       putStrLn "Theory AST:\n"
-       let aststr = show theory
-       putStrLn aststr
-       loadDependencies theory hreqs
+  = do res <- readTheory fnroot
+       case res of
+         Nothing -> return hreqs
+         Just theory
+           -> do putStrLn "Theory AST:\n"
+                 let aststr = show theory
+                 putStrLn aststr
+                 loadDependencies theory hreqs
 
 readTheory fnroot
   = do let fname = fnroot ++ ".thr"
        thrystr <- readFile ("examples/"++fname)
-       let result = parseTheory (ParseMode fname) thrystr
-       case result of
-         ParseFailed loc msg
-          -> do putStrLn "Theory parse failed"
-                putStrLn $ show loc
-                putStrLn msg
-                fail msg
-         ParseOk theory
-          -> return theory
+       case parseTheory (ParseMode fname) thrystr of
+         But msgs  ->  do putStrLn $ unlines msgs
+                          return Nothing
+         Yes thry  ->  return $ Just thry
 
 loadDependencies theory hreqs
   = do hms <- loadModDeps $ hkImports theory
@@ -239,9 +239,11 @@ loadModDeps (n:ns)
 
 loadThryDeps [] = return []
 loadThryDeps (t:ts)
-  = do thry <- readTheory t
-       thrys <- loadThryDeps ts
-       return (thry:thrys)
+  = do res <- readTheory t
+       case res of
+         Nothing  -> loadThryDeps ts
+         Just thry -> do thrys <- loadThryDeps ts
+                         return (thry:thrys)
 
 cmdCheckTheorem :: HReqCmdDescr
 cmdCheckTheorem
