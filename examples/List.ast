@@ -1,0 +1,1 @@
+Mdl {mname = "List", imps = [], topdecls = [Fun [Match {fname = "length", lhspat = [Var "[]"], rhs = LInt 0, ldecls = []},Match {fname = "length", lhspat = [App (App (Var ":") (Var "_")) (Var "xs")], rhs = App (App (Var "+") (LInt 1)) (App (Var "length") (Var "xs")), ldecls = []}]]}

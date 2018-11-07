@@ -288,53 +288,54 @@ We start proper parsing by looking for \texttt{THEORY <TheoryName>}
 on the first line:
 \begin{code}
 theoryParser :: Monad m => ParseMode -> Theory -> Parser m Theory
-theoryParser pmode theory []
- = pFail pmode 0 0 "Empty file"
-theoryParser pmode theory ((lno,str):lns)
- | not gotKey    =  pFail pmode lno 1 "THEORY <TheoryName> expected"
- | otherwise     =  parseRest pmode theory' lns
- where
-   (gotKey,keyedName) = parseKeyAndName "THEORY" str
-   theory' = theory{theoryName = keyedName}
+theoryParser pmode theory lns
+ = do (thryNm,lns') <- requireKeyAndName "THEORY" lns
+      parseBody pmode theory{theoryName = thryNm} lns'
 \end{code}
 
-
 \begin{code}
-parseRest :: Monad m => ParseMode -> Theory -> Parser m Theory
-parseRest pmode theory [] = return (theory, [])
-parseRest pmode theory (ln@(lno,str):lns)
- | emptyLine str  =  parseRest pmode theory lns
- | gotImpTheory   =  parseRest pmode (thImports__ (++[thryName]) theory) lns
- | gotImpCode     =  parseRest pmode (hkImports__ (++[codeName]) theory) lns
- | gotIndSchema   =  parseIndSchema pmode theory typeName lno lns
- | gotLaw         =  parseLaw pmode theory lwName lno lrest lns
- | gotTheorem     =  parseTheorem pmode theory thrmName lno trest lns
- | otherwise      =  parseRest pmode theory lns
+parseBody :: Monad m => ParseMode -> Theory -> Parser m Theory
+parseBody pmode theory [] = return (theory, [])
+parseBody pmode theory (ln@(lno,str):lns)
+ -- we skip empty lines here...
+ | emptyLine str  =  parseBody pmode theory lns
+
+ -- simple one-liners
+ | gotImpTheory   =  parseBody pmode (thImports__ (++[thryName]) theory) lns
+ | gotImpCode     =  parseBody pmode (hkImports__ (++[codeName]) theory) lns
+
+ -- complex parsers
+ | gotIndSchema = callParser (parseIndSchema pmode theory typeName lno)     lns
+ | gotLaw       = callParser (parseLaw pmode theory lwName lno lrest)       lns
+ | gotTheorem   = callParser (parseTheorem pmode theory thrmName lno trest) lns
+
+ | otherwise      =  pFail pmode lno 1 ("unexpected line:\n"++str)
  where
    (gotImpTheory, thryName) = parseKeyAndName "IMPORT-THEORY"  str
    (gotImpCode,   codeName) = parseKeyAndName "IMPORT-HASKELL" str
    (gotLaw, lwName, lrest)   = parseOneLinerStart "LAW" str
    (gotIndSchema, typeName) = parseKeyAndName "INDUCTION-SCHEME" str
    (gotTheorem, thrmName, trest) = parseOneLinerStart "THEOREM" str
+
+   callParser parser lns
+     = do (theory',lns') <- parser lns
+          parseBody pmode theory' lns'
 \end{code}
 
 \subsection{Parse Laws}
 
 \LAWSYNTAX
 \begin{code}
-parseLaw :: Monad m
-         => ParseMode -> Theory  -> String -> Int -> String -> Lines
-         -> m (Theory, Lines)
+parseLaw :: Monad m => ParseMode -> Theory  -> String -> Int -> String
+         -> Parser m Theory
 parseLaw pmode theory lwName lno rest lns
   = case parseExprChunk pmode lno rest lns of
       But msgs
         ->  pFail pmode lno 1 $ unlines msgs
       Yes (expr, lns')
-        ->  parseRest pmode (thLaws__ (++[LAW lwName expr]) theory) lns'
+        ->  return (thLaws__ (++[LAW lwName expr]) theory, lns')
 
-parseExprChunk :: Monad m
-               => ParseMode -> Int -> String -> Lines
-               -> m (Expr, Lines)
+parseExprChunk :: Monad m => ParseMode -> Int -> String -> Parser m Expr
 parseExprChunk pmode lno rest lns
  | emptyLine rest  =  parseExpr pmode restlns chunk
  | otherwise       =  parseExpr pmode lns     [(lno,rest)]
@@ -345,6 +346,8 @@ parseExprChunk pmode lno rest lns
 
 \INDSCHEMASYNTAX
 \begin{code}
+parseIndSchema :: Monad m => ParseMode -> Theory -> String -> Int
+               -> Parser m Theory
 parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
  | not gotBase  =  pFail pmode (lno+1) 1 "missing BASE"
  | not gotStep  =  pFail pmode (lno+2) 1 "missing STEP"
@@ -354,7 +357,7 @@ parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
          Nothing
            ->  pFail pmode lno 1 "Injective law expected"
          Just ((e1,e2), lns')
-           ->  parseRest pmode
+           ->  parseBody pmode
                          (thIndScheme__ (++[ ind{indInj=(e1,e2)} ]) theory)
                          lns'
  where
@@ -366,13 +369,17 @@ parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
    ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
 parseIndSchema pmode theory typeName lno _
   = pFail pmode lno 0 "Incomplete Induction Schema"
+\end{code}
 
+Look for two expressions connected by `equality'.`
+\begin{code}
+parseEquivChunk :: Monad m => ParseMode -> Int -> String
+                -> Parser m (Expr,Expr)
 parseEquivChunk pmode lno rest lns
  | emptyLine rest  =  parseEqual pmode restlns chunk
  | otherwise       =  parseEqual pmode lns     [(lno,rest)]
  where (chunk,restlns) = getChunk lns
 \end{code}
-
 
 \newpage
 \subsection{Parse Theorems}
@@ -391,9 +398,7 @@ parseProof pmode theory thrmName goal (ln:lns)
   | gotReduce     =  do (strat,lns') <- parseReduction pmode rstrat lns
                         let thry = THEOREM thrmName goal strat
                         let theory' = thTheorems__ (++[thry]) theory
-                        -- this code should be refactored so that
-                        -- parseProof need not know what called it....
-                        parseRest pmode theory' lns'
+                        return (theory',lns')
   | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
@@ -619,12 +624,21 @@ defFocus _        =  Top
 \newpage
 \subsection{``One-Liner'' Parsing}
 
+\subsubsection{Speculative line-parses}
+
+The following line parsers check to see if a line has a particular form,
+returning a true boolean value that is so,
+plus extra information if required.
+
+
 \begin{code}
+emptyLine :: String -> Bool
 emptyLine = all isSpace
 \end{code}
 
 We return a boolean that is true if the parse suceeds.
 \begin{code}
+parseKeyAndName :: String -> String -> (Bool, String)
 parseKeyAndName key str
   = case words str of
       [w1,w2] | w1 == key  ->  (True,  w2)
@@ -632,6 +646,7 @@ parseKeyAndName key str
 \end{code}
 
 \begin{code}
+parseKeyAndValue :: ParseMode -> String -> String -> (Bool, Expr)
 parseKeyAndValue pmode key str
   = case words str of
       (w1:wrest) | w1 == key
@@ -642,6 +657,8 @@ parseKeyAndValue pmode key str
 \end{code}
 
 \begin{code}
+parseKeyNameKeyValue :: ParseMode -> String -> String -> String
+                     -> (Bool,String,Expr)
 parseKeyNameKeyValue pmode key1 key2 str
   = case words str of
       (w1:w2:w3:wrest) | w1 == key1 && w3 == key2
@@ -652,6 +669,7 @@ parseKeyNameKeyValue pmode key1 key2 str
 \end{code}
 
 \begin{code}
+parseOneLinerStart :: String -> String -> (Bool,String,String)
 parseOneLinerStart key str
   = case words str of
       (w1:w2:rest) | w1 == key  ->  (True,  w2, unwords rest)
@@ -660,13 +678,32 @@ parseOneLinerStart key str
                                     , str)
 \end{code}
 
+\subsubsection{Mandatory one-liners}
+
+These parsers expect a specific form of line at the head of the
+current list of lines, and fail with an error if not found.
+
+\begin{code}
+requireKeyAndName :: Monad m => String -> Parser m String
+requireKeyAndName key [] = fail ("EOF while expecting "++key++" <name>")
+requireKeyAndName key (ln@(lno,str):lns)
+  = case words str of
+      [w1,w2] | w1 == key  ->  return (w2,lns)
+      _                    ->  lFail lno ("Expecting '"++key++"' and name")
+\end{code}
+
+\begin{code}
+lFail lno msg = fail ("Line:"++show lno++"\n"++msg)
+\end{code}
+
+
 \newpage
 \subsection{Chunk Parser}
 
-A chunk is zero or more empty lines,
-followed by one or more non-empty lines,
-followed by at least one empty line,
-or the end of the list of lines.
+A chunk is found by skipping over zero or more empty lines,
+to find a maximal run of one or more non-empty lines.
+A chunck is either followed by at least one empty line,
+or the end of all of the lines.
 \begin{code}
 getChunk []       =  ([],[])
 
