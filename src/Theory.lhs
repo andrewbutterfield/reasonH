@@ -405,7 +405,6 @@ parseProof pmode theory thrmName goal (ln:lns)
     (gotReduce,rstrat) = parseRedStrat $ snd ln
     (gotInduction,istrat) = parseIndStrat $ snd ln
 \end{code}
-
 \STRATEGIES
 \begin{code}
 parseRedStrat str
@@ -419,35 +418,46 @@ parseRedStrat str
     udefc = error "undefined reduce calculation"
 \end{code}
 
-\texttt{
-\\\ReduceBoth
-\REDBOTHSYNTAX
-}
+\newpage
 \begin{code}
-parseReduction pmode (ReduceBoth _ _) lns
- -- expect LHS
- = pFail pmode 0 0 "parseReduction ReduceBoth NYI"
+parseReduction :: Monad m => ParseMode -> Strategy
+               -> Parser m Strategy -- Lines -> m (Strategy, [(Int, [Char])])
 \end{code}
-
 \texttt{
 \\\ReduceAll | \ReduceLHS | \ReduceRHS
 \\<Calculation>
 }
 \begin{code}
-parseReduction pmode (ReduceAll _) lns  =  parseReduction' pmode ReduceAll lns
-parseReduction pmode (ReduceLHS _) lns  =  parseReduction' pmode ReduceLHS lns
-parseReduction pmode (ReduceRHS _) lns  =  parseReduction' pmode ReduceRHS lns
+-- single reductions end with "QED"
+parseReduction pm (ReduceAll _) lns  =  parseReduction' pm "QED" ReduceAll lns
+parseReduction pm (ReduceLHS _) lns  =  parseReduction' pm "QED" ReduceLHS lns
+parseReduction pm (ReduceRHS _) lns  =  parseReduction' pm "QED" ReduceRHS lns
+\end{code}
+\texttt{
+\\\ReduceBoth
+\REDBOTHSYNTAX
+}
+\begin{code}
+parseReduction pm (ReduceBoth _ _) lns
+ = do (_,lns1) <- requireKey "LHS" lns
+      -- first reduction ends with "RHS"
+      (ReduceAll red1,lns2) <- parseReduction' pm "RHS" ReduceAll lns1
+      -- second reduction ends with "QED"
+      (ReduceAll red2,lns3) <- parseReduction' pm "QED" ReduceAll lns2
+      return (ReduceBoth red1 red2,lns3)
+\end{code}
 
-calcStop = ["QED","RHS"]
 
-parseReduction' pmode reduce lns
- = do (calc, lns') <- parseCalculation pmode lns
+
+\begin{code}
+parseReduction' pmode calcStop reduce lns
+ = do (calc, lns') <- parseCalculation pmode calcStop lns
       -- expect calcStop
-      completeCalc pmode reduce calc lns'
+      completeCalc pmode calcStop reduce calc lns'
 
-completeCalc pmode _ _ [] = pFail pmode 0 0 "missing calc end"
-completeCalc pmode reduce calc ((num,str):lns)
- | trim str `elem` calcStop  =  return (reduce calc,lns)
+completeCalc pmode _ _ _ [] = pFail pmode 0 0 "missing calc end"
+completeCalc pmode calcStop reduce calc ((num,str):lns)
+ | trim str == calcStop  =  return (reduce calc,lns)
  | otherwise = pFail pmode num 0 ("improper calc end: "++str)
 \end{code}
 
@@ -466,10 +476,10 @@ type Steps = [(Line,Lines)]
 This requires multiple ``chunks'' to be parsed.
 Blank lines are separators,
 as are lines beginning with a leading space followed by a single equal sign.
-A calculation is ended by a line starting with ``QED'' or ``RHS''.
+A calculation is ended by a line starting with \texttt{calcStop}.
 \begin{code}
-parseCalculation :: Monad m => ParseMode -> Parser m Calculation
-parseCalculation pmode lns
+parseCalculation :: Monad m => ParseMode -> String -> Parser m Calculation
+parseCalculation pmode calcStop lns
   = do (calcChunks,rest) <- takeLinesBefore calcStop lns
        ((fstChunk,sepChunks),_) <- splitLinesOn pmode isJustificationLn calcChunks
        (goalPred,_) <- parseExpr pmode [] fstChunk
@@ -480,13 +490,13 @@ parseCalculation pmode lns
 Break line-list at the first use of a designated keyword,
 discarding empty lines along the way
 \begin{code}
-takeLinesBefore :: Monad m => [String] -> Parser m Lines
+takeLinesBefore :: Monad m => String -> Parser m Lines
 takeLinesBefore _ [] = return ( [], [] )
-takeLinesBefore keys lns@(ln:lns')
- | null lnwords              =  takeLinesBefore keys lns'
- | head lnwords `elem` keys  =  return ( [], lns )
- | otherwise                 =  do (before,after) <- takeLinesBefore keys lns'
-                                   return ( ln:before, after )
+takeLinesBefore key lns@(ln:lns')
+ | null lnwords         =  takeLinesBefore key lns'
+ | head lnwords == key  =  return ( [], lns )
+ | otherwise            =  do (before,after) <- takeLinesBefore key lns'
+                              return ( ln:before, after )
  where lnwords = words $ snd ln
 \end{code}
 
@@ -608,14 +618,15 @@ defUsage _        =  Whole
 \end{code}
 
 Seen law and possible usage, looking for optional focus.
+Expecting either \texttt{@ name} or \texttt{@ name i}
 \begin{code}
 parseFocus pmode lno jr jlaw u []
                                  =  return $ BECAUSE jr jlaw u $ defFocus jlaw
-parseFocus pmode lno jr jlaw u [w]
-                                 =  return $ BECAUSE jr jlaw u $ At w 1
-parseFocus pmode lno jr jlaw u (w1:w2:_)
-  | all isDigit w2               =  return $ BECAUSE jr jlaw u $ At w1 $ read w2
-  | otherwise                    =  return $ BECAUSE jr jlaw u $ At w1 1
+parseFocus pmode lno jr jlaw u [w1,w2]
+  | w1 == "@"                    =  return $ BECAUSE jr jlaw u $ At w2 1
+parseFocus pmode lno jr jlaw u [w1,w2,w3]
+  | w1 == "@" && all isDigit w3  =  return $ BECAUSE jr jlaw u $ At w2 $ read w3
+parseFocus pmode lno jr jlaw u _ =  pFail pmode lno 0 "invalid focus"
 
 defFocus (D n _)  =  At n 1
 defFocus _        =  Top
@@ -682,6 +693,19 @@ parseOneLinerStart key str
 
 These parsers expect a specific form of line at the head of the
 current list of lines, and fail with an error if not found.
+
+Here we expect a single keyword on a line,
+but will pass over empty lines.
+\begin{code}
+requireKey :: Monad m => String -> Parser m ()
+requireKey key [] = fail ("EOF while expecting "++key)
+requireKey key (ln@(lno,str):lns)
+ | emptyLine str  = requireKey key lns
+ | otherwise
+    = case words str of
+        [w1] | w1 == key  ->  return ((),lns)
+        _  ->  lFail lno ("Expecting '"++key++"', found:\n"++str)
+\end{code}
 
 \begin{code}
 requireKeyAndName :: Monad m => String -> Parser m String
