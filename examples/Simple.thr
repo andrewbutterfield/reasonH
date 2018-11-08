@@ -51,7 +51,7 @@ QED
 
 
 THEOREM lengths_add_ind
-         length ((x:xs)++ys)  ==  length (x:xs) ++ length ys
+         length ((x:xs)++ys)  ==  length (x:xs) + length ys
 
 STRATEGY ReduceBoth
 
@@ -65,12 +65,12 @@ length (x:(xs++ys))
 
 RHS
 
-length (x:xs) ++ length ys
+length (x:xs) + length ys
  = DEF length.2 @ length 1
-(1 + length xs) ++ length ys
- = LAW add_assoc l2r
-1 + (length xs ++ length ys)
- = INDHYP r2l @ ++ 1
+(1 + length xs) + length ys
+ = LAW add_assoc r2l
+1 + (length xs + length ys)
+ = INDHYP r2l @ + 1
 1 + length (xs++ys)
 
 QED

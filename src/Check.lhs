@@ -112,7 +112,6 @@ checkSameLast cLHS cRHS
 \end{code}
 
 \begin{code}
-eEq = Var "=="
 equal :: Expr -> Expr -> Expr
 equal e1 e2 = App (App eEq e1) e2
 \end{code}
@@ -149,12 +148,23 @@ checkStep mdls thrys hyp goal (BECAUSE _ (D dnm i) howused what) goal'
  = case searchMods mdls dnm i of
      Nothing -> rep ("!!: Can't find definition "++dnm++"."++show i)
      Just defn
-       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal what of
-           Nothing -> rep ("!!: Failed to apply defn: "++show what)
+       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal howused what of
+           Nothing -> rep ("!!: Failed to apply "++show dnm++"."++show i)
            Just goal''
              -> if goal'' == goal'
                  then rep ("OK: use of "++dnm++"."++show i++" is correct.")
                  else rep ("!!: use of "++dnm++"."++show i++" differs.")
+
+checkStep mdls thrys hyp goal (BECAUSE _ (L lnm) howused what) goal'
+ = case searchTheories thrys lnm of
+     Nothing -> rep ("!!: Can't find law "++lnm)
+     Just thelaw
+       -> case findAndApplyLAW (mdlsKnown mdls) thelaw goal howused what of
+           Nothing -> rep ("!!: Failed to apply "++lnm++" "++show howused)
+           Just goal''
+             -> if goal'' == goal'
+                 then rep ("OK: use of "++lnm++" "++show howused++" is correct.")
+                 else rep ("!!: use of "++lnm++" "++show howused++" differs.")
 
 checkStep mdls thrys hyp goal (BECAUSE _ SMP _ _) goal'
   | exprSIMP goal == goal'  =  rep ("OK: use of SIMP is correct.")
@@ -221,32 +231,85 @@ This does an in-order traverse of the \texttt{goal} looking for
 the sub-expression defined by \texttt{what}.
 Once found, it will use \texttt{defn} to rewrite that sub-expression.
 \begin{code}
-findAndApplyDEFN :: [String] -> Definition -> Expr -> Focus -> Maybe Expr
-findAndApplyDEFN knowns defn goal Top = applyDEFN knowns defn goal
-findAndApplyDEFN knowns defn goal (At nm i)
-  = case findAllNameUsage nm [] goal of
-      [] -> Nothing
-      paths
-         -> case getIth i paths of
-             Nothing -> Nothing
-             Just path -> applyAtPathFocus
-                              (applyDEFN knowns defn)
-                              (reverse $ map fst $ dropWhile isApp1 path)
-                              goal
-  where
-    isApp1 (1,AppB)  =  True
-    isApp1 _         =  False
+findAndApplyDEFN :: [String] -> Definition -> Expr -> Usage -> Focus
+                 -> Maybe Expr
+findAndApplyDEFN knowns defn goal howused Top
+  = applyDEFN knowns howused defn goal
+
+findAndApplyDEFN knowns defn goal howused (At nm i)
+  = case pathToIndicatedName goal nm i of
+      Nothing -> Nothing
+      Just path
+       -> applyAtPathFocus (applyDEFN knowns howused defn) path goal
 \end{code}
 
-
-
 \begin{code}
-applyDEFN :: [String] -> Definition -> Expr -> Maybe Expr
-applyDEFN knowns (lhs,rhs,ldcls) expr
+applyDEFN :: [String] -> Usage -> Definition -> Expr -> Maybe Expr
+
+applyDEFN knowns L2R (lhs,rhs,ldcls) expr
   = case eMatch knowns expr lhs of
       Nothing -> Nothing
       Just bind -> Just $ buildReplacement bind ldcls rhs
+
+applyDEFN knowns R2L (lhs,rhs,ldcls) expr
+  = case eMatch knowns expr rhs of
+      Nothing -> Nothing
+      Just bind -> Just $ buildReplacement bind ldcls lhs
 \end{code}
+
+\begin{code}
+searchTheories [] lnm = Nothing
+searchTheories (thry:thrys) lnm
+  = case searchLaws (thLaws thry) lnm of
+      Nothing  ->  searchTheories thrys lnm
+      jlaw     ->  jlaw
+
+searchLaws [] lnm = Nothing
+searchLaws (lw:laws) lnm
+  | lawName lw == lnm  =  Just lw
+  | otherwise  = searchLaws laws lnm
+\end{code}
+
+
+This does an in-order traverse of the \texttt{goal} looking for
+the sub-expression defined by \texttt{what}.
+Once found, it will use \texttt{thelaw},
+according to \texttt{howused},
+to rewrite that sub-expression.
+\begin{code}
+findAndApplyLAW :: [String] -> Law -> Expr -> Usage -> Focus -> Maybe Expr
+
+findAndApplyLAW knowns thelaw goal howused Top
+ = applyLAW knowns howused (lawEqn thelaw) goal
+
+findAndApplyLAW knowns thelaw goal howused (At nm i)
+  = case pathToIndicatedName goal nm i of
+      Nothing -> Nothing
+      Just path
+       -> applyAtPathFocus (applyLAW knowns howused $ lawEqn thelaw) path goal
+\end{code}
+
+\begin{code}
+applyLAW :: [String] -> Usage -> Expr -> Expr -> Maybe Expr
+
+applyLAW knowns Whole thelaw expr
+  = case eMatch knowns expr thelaw of
+      Nothing -> Nothing
+      Just _ -> Just $ LBool True
+
+applyLAW knowns L2R (Equal lhs rhs) expr
+  = case eMatch knowns expr lhs of
+      Nothing -> Nothing
+      Just bind -> Just $ buildReplacement bind [] rhs
+
+applyLAW knowns R2L (Equal lhs rhs) expr
+  = case eMatch knowns expr rhs of
+      Nothing -> Nothing
+      Just bind -> Just $ buildReplacement bind [] lhs
+\end{code}
+
+\newpage
+\subsubsection{Focus Handling}
 
 Consider we are looking for the $i$th occurrence of name \texttt{f}
 in an expression, and it is found embedded somehere,
@@ -320,6 +383,20 @@ replIth n x' (x:xs)  =  do xs' <- replIth (n-1) x' xs
 \end{code}
 
 \begin{code}
+pathToIndicatedName :: Expr -> String -> Int -> Maybe [Int]
+pathToIndicatedName goal nm i
+ = case findAllNameUsage nm [] goal of
+      [] -> Nothing
+      paths
+         -> case getIth i paths of
+             Nothing -> Nothing
+             Just path -> Just $ reverse $ map fst $ dropWhile isApp1 path
+  where
+    isApp1 (1,AppB)  =  True
+    isApp1 _         =  False
+\end{code}
+
+\begin{code}
 applyAtPathFocus :: (Expr -> Maybe Expr) -> [Int] -> Expr -> Maybe Expr
 applyAtPathFocus replace []    goal = replace goal
 applyAtPathFocus replace (i:is) (App e1 e2)
@@ -348,7 +425,6 @@ applyAtPathFocus replace (i:is) (PApp nm es)   =  Nothing
 
 applyAtPathFocus replace (i:is) goal = Nothing
 \end{code}
-
 
 
 

@@ -10,9 +10,10 @@ module AST
 (
   Expr(..), Match(..), Decl(..), Mdl(..), FixTab
 , hsModule2Mdl, hsDecl2Decl, hsExp2Expr
-, pattern InfixApp
+, pattern InfixApp, pattern Equal
   -- special variables:
 , eNull, eCons
+, eEq
 , pWild, pAs
 , preludeFixTab
 )
@@ -174,7 +175,9 @@ hsExps2Expr ftab (hse:hses)
 
 We want to match and build infix operators as simple unary applications:
 \begin{code}
+eEq = Var "=="
 pattern InfixApp e1 op e2 = App (App (Var op) e1) e2
+pattern Equal e1 e2       = App (App (Var "==") e1) e2
 \end{code}
 
 
