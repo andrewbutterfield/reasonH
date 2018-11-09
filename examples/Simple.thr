@@ -25,7 +25,7 @@ length (10:20:30:[])
 QED
 
 LAW lengths_add
-             length (xs++ys)   ==   length xs ++ length ys
+             length (xs++ys)   ==   length xs + length ys
 
 THEOREM lengths_add_base
 
