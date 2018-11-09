@@ -382,6 +382,17 @@ replIth n x' (x:xs)  =  do xs' <- replIth (n-1) x' xs
                            return (x:xs')
 \end{code}
 
+\newpage
+Given an expression ($e$), a name ($n$), and an integer $i$,
+locate the $i$th (inorder) ``effective occurence'' of $n$ in $e$.
+By ``effective occurrence'' we mean that if the name is of an applied
+function then we want the sub-expression that corresponds to the
+application of that function to all its arguments.
+For example, given $(h~f) + f~ x~ y + 1$,
+the first effective occurrence of $f$ is just the $f$ that is the argument
+to $h$,
+while the second effective occurrence is the whole application $f~x~y$.
+
 \begin{code}
 pathToIndicatedName :: Expr -> String -> Int -> Maybe [Int]
 pathToIndicatedName goal nm i

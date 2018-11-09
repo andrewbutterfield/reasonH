@@ -4,6 +4,3 @@ INDUCTION-SCHEME List
 BASE  []
 STEP  xs --> (x:xs)
 INJ   ( x == y && xs == ys )   ==  ( (x:xs) == (y:ys) )
-
-LAW lengths_add
-             length (xs++ys)   ==   length xs ++ length ys

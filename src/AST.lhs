@@ -315,7 +315,10 @@ twist prcf assf (InfixApp e1 op e2)
   = twist' prcf assf (InfixApp (twist prcf assf e1) op (twist prcf assf e2))
 twist prcf assf e = e
 
-twist' prcf assf (InfixApp (InfixApp e1 op1 e2) op2 e3)
+twist' prcf assf e@(InfixApp (InfixApp e1 op1 e2) op2 e3)
+  -- does the parser have specific handling for : and ++ ???
+  -- so it appears !!!!
+  | op1 `elem` [":","++"] && op2 `elem` [":","++"]  = e
   | assf op1 == ARight && assf op2 == ARight && prcf op1 == prcf op2
     = InfixApp e1 op1 (insSE prcf assf op2 e2 e3 )
 twist' _ _ e = e

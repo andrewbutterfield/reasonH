@@ -1,0 +1,8 @@
+THEORY {theoryName = "Simple", thImports = ["Arithmetic","List"], hkImports = ["List"], thLaws = [
+
+LAW {lawName = "lengths_add", lawEqn = App (App (Var "==") (App (Var "length") (App (App (Var "++") (Var "xs")) (Var "ys")))) (App (App (Var "++") (App (Var "length") (Var "xs"))) (App (Var "length") (Var "ys")))}]
+
+
+
+
+calcs = [(BECAUSE {jrel = JEq, law = D "length" 2, usage = L2R, focus = At "length" 1},App (App (Var "+") (App (App (Var "+") (LInt 1)) (App (Var "length") (Var "xs")))) (App (Var "length") (Var "ys"))),(BECAUSE {jrel = JEq, law = L "add_assoc", usage = R2L, focus = Top},App (App (Var "+") (LInt 1)) (App (App (Var "+") (App (Var "length") (Var "xs"))) (App (Var "length") (Var "ys")))),(BECAUSE {jrel = JEq, law = L "lengths_add", usage = R2L, focus = At "+" 2},App (App (Var "+") (LInt 1)) (App (Var "length") (App (App (Var "++") (Var "xs")) (Var "ys"))))]})}]}

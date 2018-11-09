@@ -264,5 +264,5 @@ theoremCheck (n:_) hreqs
            ->  case findTheorem n $ thTheorems thry of
                  Nothing   ->  putStrLn ("Theorem not found: "++n)
                  Just thm  ->  showReport $
-                     checkTheorem (hmods hreqs) (hthrys hreqs) thm
+                     checkTheorem (hmods hreqs) (hthrys hreqs ++ [thry]) thm
        return hreqs

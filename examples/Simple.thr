@@ -24,6 +24,8 @@ length (10:20:30:[])
 
 QED
 
+LAW lengths_add
+             length (xs++ys)   ==   length xs ++ length ys
 
 THEOREM lengths_add_base
 
@@ -70,7 +72,7 @@ length (x:xs) + length ys
 (1 + length xs) + length ys
  = LAW add_assoc r2l
 1 + (length xs + length ys)
- = INDHYP r2l @ + 1
+ = LAW lengths_add r2l @ + 2
 1 + length (xs++ys)
 
 QED
