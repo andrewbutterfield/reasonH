@@ -61,12 +61,11 @@ An induction-scheme is described by the following four lines:
 \\INDUCTION-SCHEME <Type>
 \\BASE <value>
 \\STEP <var> --> <expr>
-\\INJ  <br?> ( <expr> )  ===  ( <expr> )
+\\INJ  <br?> <expr>  ==  <expr>
 }}
 
 \INDSCHEMASYNTAX
 
-The parentheses in the last line seem to be necessary for now.
 
 \newpage
 
@@ -93,10 +92,10 @@ Strategies include:
 }}
 \def\Induction{Induction}
 \def\DOINDUCTION{\texttt{
-\\\Induction <type1> <ind-var1> .. <typeN> <ind-varN>
+\\\Induction <ind-var> :: <type>
 }}
 \def\SDOINDUCTION{\texttt{
-\\STRATEGY Induction <type1> <ind-var1> .. <typeN> <ind-varN>
+\\STRATEGY Induction <ind-var> :: <type>
 }}
 
 \STRATEGIES
@@ -104,10 +103,10 @@ Strategies include:
 
 The choice of strategy will then determine the resulting structure:
 \def\INDUCTIONSYNTAX{\texttt{
-\\BASE <var1> = <val1> .. <varN> = <valN> <br!> <expr>
+\\BASE <val> <br!> <expr>
 \\<one of the other four strategies>
 \\QED BASE
-\\STEP <var1> --> <expr1> .. <varN> --> <exprN>
+\\STEP <expr>
 \\ASSUME <br?> <expr>
 \\SHOW <br?> <expr>
 \\<one of the other four strategies>
@@ -227,10 +226,10 @@ data Strategy
 \INDUCTIONSYNTAX
 \begin{code}
  | Induction {
-     iVars :: [(String,String)] -- type var
-   , baseVals :: [(String,Expr)] -- var = value
+     iVar :: (String,String) -- var :: type
+   , baseVal :: Expr -- value
    , baseStrategy :: Strategy
-   , steps :: [(String,Expr)] -- var --> expr
+   , stepExpr :: Expr -- expr
    , assume :: Expr
    , iGoal :: Expr
    , stepStrategy :: Strategy
@@ -399,7 +398,10 @@ parseProof pmode theory thrmName goal (ln:lns)
                         let thry = THEOREM thrmName goal strat
                         let theory' = thTheorems__ (++[thry]) theory
                         return (theory',lns')
-  | gotInduction  =  pFail pmode (fst ln) 0 "parseInduction NYI"
+  | gotInduction  =  do (strat,lns') <- parseInduction pmode istrat lns
+                        let thry = THEOREM thrmName goal strat
+                        let theory' = thTheorems__ (++[thry]) theory
+                        return (theory',lns')
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
     (gotReduce,rstrat) = parseRedStrat $ snd ln
@@ -412,7 +414,7 @@ parseRedStrat str
   | stratSpec == ["STRATEGY","ReduceLHS"]   =  (True,ReduceLHS  udefc)
   | stratSpec == ["STRATEGY","ReduceRHS"]   =  (True,ReduceRHS  udefc)
   | stratSpec == ["STRATEGY","ReduceBoth"]  =  (True,ReduceBoth udefc udefc)
-  | otherwise  =  (False,error "parseRedStrateg NYI")
+  | otherwise  =  (False,error "not a reduction strategy")
   where
     stratSpec = words str
     udefc = error "undefined reduce calculation"
@@ -421,7 +423,7 @@ parseRedStrat str
 \newpage
 \begin{code}
 parseReduction :: Monad m => ParseMode -> Strategy
-               -> Parser m Strategy -- Lines -> m (Strategy, [(Int, [Char])])
+               -> Parser m Strategy
 \end{code}
 \texttt{
 \\\ReduceAll | \ReduceLHS | \ReduceRHS
@@ -464,7 +466,36 @@ completeCalc pmode calcStop reduce calc ((num,str):lns)
 
 \SDOINDUCTION
 \begin{code}
-parseIndStrat ln = (False,"parseIndStrateg NYI")
+parseIndStrat str
+  = case words str of
+      ("STRATEGY":"induction":indtvars)  ->  parseIndVars indtvars
+      _ -> (False,error "not an induction strategy")
+
+parseIndVars [] = (False,error "no induction variables defined.")
+parseIndVars [var,"::",typ]
+  = ( True
+    , Induction { iVar = (var,typ)
+                , baseVal = error "base value not yet defined"
+                , baseStrategy = error "base strategy not yet defined"
+                , stepExpr = error "step not yet defined"
+                , assume = error "hyp not yet defined"
+                , iGoal = error "goal not yet defined"
+                , stepStrategy = error "step strategy not yet defined"
+                } )
+parseIndVars _ = (False, error "Expected var :: type")
+\end{code}
+
+\newpage
+\INDUCTIONSYNTAX
+\begin{code}
+parseInduction :: Monad m => ParseMode -> Strategy
+               -> Parser m Strategy
+parseInduction pmode strat []
+  = pFail pmode 0 0 "parseInduction: end-of-file"
+parseInduction pmode strat lns
+  = do (bval,lns') <- requireKeyAndValue pmode "BASE" lns
+       let strat' = strat{ baseVal = bval }
+       pFail pmode 0 0 "parseInduction NYFI"
 \end{code}
 
 
@@ -689,13 +720,14 @@ parseOneLinerStart key str
                                     , str)
 \end{code}
 
+\newpage
 \subsubsection{Mandatory one-liners}
 
-These parsers expect a specific form of line at the head of the
-current list of lines, and fail with an error if not found.
+These parsers expect a specific form of line
+as the first non-empty line in the  current list of lines,
+and fail with an error if not found.
 
-Here we expect a single keyword on a line,
-but will pass over empty lines.
+Here we will pass over empty lines.
 \begin{code}
 requireKey :: Monad m => String -> Parser m ()
 requireKey key [] = fail ("EOF while expecting "++key)
@@ -707,6 +739,7 @@ requireKey key (ln@(lno,str):lns)
         _  ->  lFail lno ("Expecting '"++key++"', found:\n"++str)
 \end{code}
 
+Here, we expect something on the current line.
 \begin{code}
 requireKeyAndName :: Monad m => String -> Parser m String
 requireKeyAndName key [] = fail ("EOF while expecting "++key++" <name>")
@@ -715,6 +748,21 @@ requireKeyAndName key (ln@(lno,str):lns)
       [w1,w2] | w1 == key  ->  return (w2,lns)
       _                    ->  lFail lno ("Expecting '"++key++"' and name")
 \end{code}
+
+Here we will pass over empty lines.
+
+\begin{code}
+requireKeyAndValue :: Monad m => ParseMode -> String -> Parser m Expr
+requireKeyAndValue pmode key [] = fail ("EOF while expecting "++key++" <expr>")
+requireKeyAndValue pmode key (ln@(lno,str):lns)
+  | emptyLine str  =  requireKeyAndValue pmode key lns
+  | otherwise
+    = case words str of
+        (w1:wrest) | w1 == key
+           ->  parseExpr pmode [] [(0,unwords wrest)]
+        _  ->  fail ("Expecting '"++key++"' and expr")
+\end{code}
+
 
 \begin{code}
 lFail lno msg = fail ("Line:"++show lno++"\n"++msg)

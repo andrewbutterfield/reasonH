@@ -8,9 +8,9 @@ THEOREM lengths_add
 
             length (xs++ys)  ==  length xs ++ length ys
 
-STRATEGY induction List xs
+STRATEGY induction xs :: List
 
-BASE  xs = []
+BASE  []
 
             length ([]++ys)  ==  length [] + length ys
 
@@ -32,7 +32,7 @@ length ys
 
 QED BASE
 
-STEP xs --> (x:xs)
+STEP (x:xs)
 
 ASSUME
              length (xs++ys)   ==   length xs ++ length ys
