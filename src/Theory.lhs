@@ -310,11 +310,11 @@ parseBody pmode theory (ln@(lno,str):lns)
 
  | otherwise      =  pFail pmode lno 1 ("unexpected line:\n"++str)
  where
-   (gotImpTheory, thryName) = parseKeyAndName "IMPORT-THEORY"  str
-   (gotImpCode,   codeName) = parseKeyAndName "IMPORT-HASKELL" str
-   (gotLaw, lwName, lrest)   = parseOneLinerStart "LAW" str
-   (gotIndSchema, typeName) = parseKeyAndName "INDUCTION-SCHEME" str
-   (gotTheorem, thrmName, trest) = parseOneLinerStart "THEOREM" str
+   (gotImpTheory, thryName)       =  parseKeyAndName "IMPORT-THEORY"    str
+   (gotImpCode,   codeName)       =  parseKeyAndName "IMPORT-HASKELL"   str
+   (gotLaw, lwName, lrest)        =  parseOneLinerStart "LAW"           str
+   (gotIndSchema, typeName)       =  parseKeyAndName "INDUCTION-SCHEME" str
+   (gotTheorem, thrmName, trest)  =  parseOneLinerStart "THEOREM"       str
 
    callParser parser lns
      = do (theory',lns') <- parser lns
@@ -385,28 +385,33 @@ parseEquivChunk pmode lno rest lns
 
 \THEOREMSYNTAX
 \begin{code}
+parseTheorem :: Monad m => ParseMode -> Theory -> String -> Int -> String
+             -> Parser m Theory
 parseTheorem pmode theory thrmName lno rest lns
   = case parseExprChunk pmode lno rest lns of
       Nothing
         ->  pFail pmode lno 0 "Theorem expected"
       Just (goal, lns')
-        ->  parseProof pmode theory thrmName goal lns'
+        -> do (strat,lns') <- parseStrategy pmode $ dbg "pT.lns':\n" lns'
+              let thry = THEOREM thrmName goal strat
+              let theory' = thTheorems__ (++[thry]) theory
+              return (theory',lns')
+\end{code}
 
-parseProof pmode theory thrmName goal [] = pFail pmode maxBound 0 "missing proof"
-parseProof pmode theory thrmName goal (ln:lns)
-  | gotReduce     =  do (strat,lns') <- parseReduction pmode rstrat lns
-                        let thry = THEOREM thrmName goal strat
-                        let theory' = thTheorems__ (++[thry]) theory
-                        return (theory',lns')
-  | gotInduction  =  do (strat,lns') <- parseInduction pmode istrat lns
-                        let thry = THEOREM thrmName goal strat
-                        let theory' = thTheorems__ (++[thry]) theory
-                        return (theory',lns')
+\subsubsection{Parse Strategies}
+
+\begin{code}
+parseStrategy :: Monad m => ParseMode -> Parser m Strategy
+parseStrategy pmode [] = pFail pmode maxBound 0 "missing proof strategy"
+parseStrategy pmode (ln:lns)
+  | gotReduce     =  parseReduction pmode rstrat lns
+  | gotInduction  =  parseInduction pmode vartyp lns
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
     (gotReduce,rstrat) = parseRedStrat $ snd ln
-    (gotInduction,istrat) = parseIndStrat $ snd ln
+    (gotInduction,vartyp) = parseIndStrat $ snd ln
 \end{code}
+
 \STRATEGIES
 \begin{code}
 parseRedStrat str
@@ -459,10 +464,9 @@ parseReduction' pmode calcStop reduce lns
 
 completeCalc pmode _ _ _ [] = pFail pmode 0 0 "missing calc end"
 completeCalc pmode calcStop reduce calc ((num,str):lns)
- | trim str == calcStop  =  return (reduce calc,lns)
- | otherwise = pFail pmode num 0 ("improper calc end: "++str)
+ | take 1 (words str) == [calcStop]  =  return (reduce calc,lns)
+ | otherwise  =  pFail pmode num 0 ("improper calc end: "++str)
 \end{code}
-
 
 \SDOINDUCTION
 \begin{code}
@@ -472,30 +476,35 @@ parseIndStrat str
       _ -> (False,error "not an induction strategy")
 
 parseIndVars [] = (False,error "no induction variables defined.")
-parseIndVars [var,"::",typ]
-  = ( True
-    , Induction { iVar = (var,typ)
-                , baseVal = error "base value not yet defined"
-                , baseStrategy = error "base strategy not yet defined"
-                , stepExpr = error "step not yet defined"
-                , assume = error "hyp not yet defined"
-                , iGoal = error "goal not yet defined"
-                , stepStrategy = error "step strategy not yet defined"
-                } )
+parseIndVars [var,"::",typ] = (True, (var,typ))
 parseIndVars _ = (False, error "Expected var :: type")
 \end{code}
 
 \newpage
 \INDUCTIONSYNTAX
 \begin{code}
-parseInduction :: Monad m => ParseMode -> Strategy
-               -> Parser m Strategy
-parseInduction pmode strat []
+parseInduction :: Monad m => ParseMode -> (String,String) -> Parser m Strategy
+parseInduction pmode _ []
   = pFail pmode 0 0 "parseInduction: end-of-file"
-parseInduction pmode strat lns
-  = do (bval,lns') <- requireKeyAndValue pmode "BASE" lns
-       let strat' = strat{ baseVal = bval }
-       pFail pmode 0 0 "parseInduction NYFI"
+parseInduction pmode vartyp lns
+  = do (bval,lns1) <- requireKeyAndValue pmode "BASE" lns
+       (bstrat,lns2) <- parseStrategy pmode $ dbg "pS.lns1:\n" lns1
+       (sexpr,lns3) <- requireKeyAndValue pmode "STEP" lns2
+       (_,lns4a) <- requireKey "ASSUME" lns3
+       (ass,lns4) <- parseExprChunk pmode 0 [] lns4a -- FIX
+       (_,lns5a) <- requireKeyAndValue pmode "SHOW" lns4
+       (goal,lns5) <- parseExprChunk pmode 0 [] lns5a -- FIX
+       (sstrat,lns6) <- parseStrategy pmode $ dbg "pS.lns5:\n" lns5
+       return ( Induction { iVar = dbg "IND:" vartyp
+                          , baseVal = bval
+                          , baseStrategy = bstrat
+                          , stepExpr = sexpr
+                          , assume = ass
+                          , iGoal = goal
+                          , stepStrategy = sstrat
+                          }
+              , lns6
+              )
 \end{code}
 
 

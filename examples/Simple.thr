@@ -22,7 +22,7 @@ length (10:20:30:[])
  = SIMP
 3
 
-QED
+QED len3
 
 LAW lengths_add
              length (xs++ys)   ==   length xs + length ys
@@ -47,7 +47,7 @@ length [] + length ys
  = LAW add_left_zero l2r
 length ys
 
-QED
+QED lengths_add_base
 
 
 
@@ -75,4 +75,4 @@ length (x:xs) + length ys
  = LAW lengths_add r2l @ + 2
 1 + length (xs++ys)
 
-QED
+QED lengths_add_ind
