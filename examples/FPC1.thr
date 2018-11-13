@@ -14,7 +14,7 @@ BASE  []
 
             length ([]++ys)  ==  length [] + length ys
 
-STRATEGY reduce-both
+STRATEGY ReduceBoth
 
 LHS
 
@@ -40,7 +40,7 @@ ASSUME
 SHOW
          length ((x:xs)++ys)  ==  length (x:xs) ++ length ys
 
-STRATEGY reduce-both
+STRATEGY ReduceBoth
 
 LHS
 

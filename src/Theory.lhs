@@ -225,13 +225,14 @@ data Strategy
 \SDOINDUCTION
 \INDUCTIONSYNTAX
 \begin{code}
- | Induction {
-     iVar :: (String,String) -- var :: type
-   , baseVal :: Expr -- value
+ | Induction { -- goal is what we are proving by induction
+     iVar :: (String,String)  -- var :: type
+   , baseVal :: Expr          -- base value
+   , bGoal :: Expr            --  goal[baseVal/var]
    , baseStrategy :: Strategy
-   , stepExpr :: Expr -- expr
-   , assume :: Expr
-   , iGoal :: Expr
+   , stepExpr :: Expr         -- expr
+   , assume :: Expr           -- goal
+   , iGoal :: Expr            -- goal[stepExpr/var]
    , stepStrategy :: Strategy
    }
  deriving Show
@@ -392,10 +393,10 @@ parseTheorem pmode theory thrmName lno rest lns
       Nothing
         ->  pFail pmode lno 0 "Theorem expected"
       Just (goal, lns')
-        -> do (strat,lns') <- parseStrategy pmode $ dbg "pT.lns':\n" lns'
+        -> do (strat,lns'') <- parseStrategy pmode lns'
               let thry = THEOREM thrmName goal strat
               let theory' = thTheorems__ (++[thry]) theory
-              return (theory',lns')
+              return (theory',lns'')
 \end{code}
 
 \subsubsection{Parse Strategies}
@@ -408,13 +409,13 @@ parseStrategy pmode (ln:lns)
   | gotInduction  =  parseInduction pmode vartyp lns
   | otherwise     =  pFail pmode (fst ln) 0 "STRATEGY <strategy> expected."
   where
-    (gotReduce,rstrat) = parseRedStrat $ snd ln
-    (gotInduction,vartyp) = parseIndStrat $ snd ln
+    (gotReduce,rstrat) = parseRedStratDecl $ snd ln
+    (gotInduction,vartyp) = parseIndStratDecl $ snd ln
 \end{code}
 
 \STRATEGIES
 \begin{code}
-parseRedStrat str
+parseRedStratDecl str
   | stratSpec == ["STRATEGY","ReduceAll"]   =  (True,ReduceAll  udefc)
   | stratSpec == ["STRATEGY","ReduceLHS"]   =  (True,ReduceLHS  udefc)
   | stratSpec == ["STRATEGY","ReduceRHS"]   =  (True,ReduceRHS  udefc)
@@ -470,7 +471,7 @@ completeCalc pmode calcStop reduce calc ((num,str):lns)
 
 \SDOINDUCTION
 \begin{code}
-parseIndStrat str
+parseIndStratDecl str
   = case words str of
       ("STRATEGY":"induction":indtvars)  ->  parseIndVars indtvars
       _ -> (False,error "not an induction strategy")
@@ -488,22 +489,25 @@ parseInduction pmode _ []
   = pFail pmode 0 0 "parseInduction: end-of-file"
 parseInduction pmode vartyp lns
   = do (bval,lns1) <- requireKeyAndValue pmode "BASE" lns
-       (bstrat,lns2) <- parseStrategy pmode $ dbg "pS.lns1:\n" lns1
-       (sexpr,lns3) <- requireKeyAndValue pmode "STEP" lns2
-       (_,lns4a) <- requireKey "ASSUME" lns3
-       (ass,lns4) <- parseExprChunk pmode 0 [] lns4a -- FIX
-       (_,lns5a) <- requireKeyAndValue pmode "SHOW" lns4
-       (goal,lns5) <- parseExprChunk pmode 0 [] lns5a -- FIX
-       (sstrat,lns6) <- parseStrategy pmode $ dbg "pS.lns5:\n" lns5
-       return ( Induction { iVar = dbg "IND:" vartyp
+       (bexpr,lns2) <- parseExprChunk pmode 0 [] lns1
+       (bstrat,lns3) <- parseStrategy pmode lns2
+       (sexpr,lns4) <- requireKeyAndValue pmode "STEP" lns3
+       (_,lns5a) <- requireKey "ASSUME" lns4
+       (ass,lns5) <- parseExprChunk pmode 0 [] lns5a -- FIX
+       (_,lns6a) <- requireKey "SHOW" lns5
+       (goal,lns6) <- parseExprChunk pmode 0 [] lns6a -- FIX
+       (sstrat,lns7) <- parseStrategy pmode lns6
+       (thnm,lns8) <- requireKeyAndName "QED" lns7
+       return ( Induction { iVar = vartyp
                           , baseVal = bval
+                          , bGoal = bexpr
                           , baseStrategy = bstrat
                           , stepExpr = sexpr
                           , assume = ass
                           , iGoal = goal
                           , stepStrategy = sstrat
                           }
-              , lns6
+              , lns8
               )
 \end{code}
 
@@ -733,10 +737,9 @@ parseOneLinerStart key str
 \subsubsection{Mandatory one-liners}
 
 These parsers expect a specific form of line
-as the first non-empty line in the  current list of lines,
+as the first non-empty line in the current list of lines,
 and fail with an error if not found.
 
-Here we will pass over empty lines.
 \begin{code}
 requireKey :: Monad m => String -> Parser m ()
 requireKey key [] = fail ("EOF while expecting "++key)
@@ -753,9 +756,11 @@ Here, we expect something on the current line.
 requireKeyAndName :: Monad m => String -> Parser m String
 requireKeyAndName key [] = fail ("EOF while expecting "++key++" <name>")
 requireKeyAndName key (ln@(lno,str):lns)
-  = case words str of
-      [w1,w2] | w1 == key  ->  return (w2,lns)
-      _                    ->  lFail lno ("Expecting '"++key++"' and name")
+  | emptyLine str  =  requireKeyAndName key lns
+  | otherwise
+    = case words str of
+        [w1,w2] | w1 == key  ->  return (w2,lns)
+        _                    ->  lFail lno ("Expecting '"++key++"' and name")
 \end{code}
 
 Here we will pass over empty lines.
@@ -768,7 +773,7 @@ requireKeyAndValue pmode key (ln@(lno,str):lns)
   | otherwise
     = case words str of
         (w1:wrest) | w1 == key
-           ->  parseExpr pmode [] [(0,unwords wrest)]
+           ->  parseExpr pmode lns [(0,unwords wrest)]
         _  ->  fail ("Expecting '"++key++"' and expr")
 \end{code}
 
