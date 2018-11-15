@@ -16,9 +16,11 @@ OK: correct first expression.
 !!: use of length.2 differs.
 Expected:
 App (App (Var "+") (LInt 1))
-    (App (Var "length") (App (App (Var ":") (App (App (Var ":") (LInt 20)) (LInt 30))) (Var "[]")))
+    (App (Var "length")
+         (App (App (Var ":") (App (App (Var ":") (LInt 20)) (LInt 30)))
+              (Var "[]")))
 Got:
-App (App (Var "+") (LInt 1)) 
+App (App (Var "+") (LInt 1))
     (App (Var "length") (Var "[]"))
 !!: use of length.2 differs.
 Expected:
@@ -30,3 +32,24 @@ OK: use of length.1 is correct.
 OK: use of SIMP is correct.
 check complete
 OK: correct last expression.
+
+Parsing Tests:
+    '1:2:[]' parses as '1:(2:[])' : [Failed]
+
+expected:
+
+Just (App (App (Var ":") (LInt 1))
+          (App (App (Var ":") (LInt 2))
+               (Var "[]")
+          )
+     ,[])
+
+ but got:
+
+ Just (App (App (Var ":")
+                (App (App (Var ":") (LInt 1))
+                     (LInt 2)
+                )
+           )
+           (Var "[]")
+      ,[])

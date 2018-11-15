@@ -53,3 +53,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - reasonH
+    - HUnit
+    - test-framework
+    - test-framework-hunit 

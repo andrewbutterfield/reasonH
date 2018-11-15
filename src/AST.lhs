@@ -180,6 +180,8 @@ pattern InfixApp e1 op e2 = App (App (Var op) e1) e2
 pattern Equal e1 e2       = App (App (Var "==") e1) e2
 \end{code}
 
+\newpage
+\subsubsection{Fixing Infix Parses}
 
 The \texttt{haskell-src} package does a very lazy parsing of infix operators
 that ignores operator precedence and treats every operator as left-associative.
@@ -245,6 +247,9 @@ hsInfix2Expr fixtab iapp
    e = twist prcf assf $ head es' -- won't be empty
 \end{code}
 
+\newpage
+\paragraph{Split}
+
 We use \texttt {split} to perform the 2nd argument conversion and splitting
 \begin{eqnarray*}
   && \Sem{( \dots ((e_1 \otimes_1 e_2) \otimes_2 e_3) \otimes_3
@@ -271,6 +276,7 @@ split ftab (HsInfixApp hse1 hsop hse2)
 split ftab hsexp = ([],[hsExp2Expr ftab hsexp])
 \end{code}
 
+\paragraph{Fuse}
 We then proceed to fuse together operators of highest precedence with
 their neighbouring expressions, and keep repeating until the lowest precedence
 have themselves been fused.
@@ -301,6 +307,8 @@ pfusing _ (-1) oes = oes
 pfusing prcf p (ops,es) = pfusing prcf (p-1) $ pfuse prcf p ops es
 \end{code}
 
+\newpage
+\paragraph{Twist}
 We now get to the point were we look for trees built with right-associative
 operators, that will still be in left-associative form.
 We have to ``twist'' these trees into right-associative form.
@@ -366,6 +374,7 @@ hsPats2Expr (hspat:hspats)
   = App (App eCons $ hsPat2Expr hspat) $ hsPats2Expr hspats
 \end{code}
 
+\newpage
 \subsection{Simplifying Parsed Matches}
 
 \begin{code}
