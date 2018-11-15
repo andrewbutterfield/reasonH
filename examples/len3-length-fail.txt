@@ -11,45 +11,74 @@ length (10:20:30:[])
 3
 
 
-Strategy: reduce LHS to RHS
-OK: correct first expression.
-!!: use of length.2 differs.
-Expected:
-App (App (Var "+") (LInt 1))
-    (App (Var "length")
-         (App (App (Var ":") (App (App (Var ":") (LInt 20)) (LInt 30)))
-              (Var "[]")))
-Got:
-App (App (Var "+") (LInt 1))
-    (App (Var "length") (Var "[]"))
-!!: use of length.2 differs.
-Expected:
-App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (App (App (Var ":") (LInt 30)) (Var "[]"))))
-Got:
-App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (Var "[]")))
-OK: use of length.2 is correct.
-OK: use of length.1 is correct.
-OK: use of SIMP is correct.
-check complete
-OK: correct last expression.
+eparse "1:2:[]" @?= eparse "1:(2:[])"
 
-Parsing Tests:
-    '1:2:[]' parses as '1:(2:[])' : [Failed]
+hsI2E.iapp :
+HsInfixApp
+  (HsInfixApp (HsLit (HsInt 1))
+              (HsQConOp (Special HsCons))
+              (HsLit (HsInt 2))
+  )
+  (HsQConOp (Special HsCons))
+  (HsList [])
+hsI2E.ops :
+[":",":"]
+hsI2E.es :
+[LInt 1,LInt 2,Var "[]"]
+hsI2E.es' :
+[App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2))) (Var "[]")]
+hsI2E.e :
+App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2))) (Var "[]")
+
+
+
+hsI2E.iapp :
+HsInfixApp
+  (HsLit (HsInt 1))
+  (HsQConOp (Special HsCons))
+  (HsParen (HsInfixApp
+             (HsLit (HsInt 2))
+             (HsQConOp (Special HsCons))
+             (HsList [])
+           )
+  )
+hsI2E.ops :
+[":"]
+
+hsI2E.iapp :
+HsInfixApp (HsLit (HsInt 2))
+           (HsQConOp (Special HsCons))
+           (HsList [])
+hsI2E.ops :
+[":"]
+hsI2E.es :
+[LInt 2,Var "[]"]
+hsI2E.es' :
+[App (App (Var ":") (LInt 2)) (Var "[]")]
+hsI2E.e :
+App (App (Var ":") (LInt 2)) (Var "[]")
+
+hsI2E.es :
+[ LInt 1, App (App (Var ":") (LInt 2)) (Var "[]") ]
+hsI2E.es' :
+[ App (App (Var ":") (LInt 1))
+      (App (App (Var ":") (LInt 2))
+           (Var "[]"))
+]
+hsI2E.e :
+App (App (Var ":") (LInt 1))
+    (App (App (Var ":") (LInt 2))
+         (Var "[]")
+    )
+    
+    '1:2:[]' parses  as '1:(2:[])' : [Failed]
+
 
 expected:
-
 Just (App (App (Var ":") (LInt 1))
-          (App (App (Var ":") (LInt 2))
-               (Var "[]")
-          )
+          (App (App (Var ":") (LInt 2)) (Var "[]"))
      ,[])
-
  but got:
-
- Just (App (App (Var ":")
-                (App (App (Var ":") (LInt 1))
-                     (LInt 2)
-                )
-           )
-           (Var "[]")
-      ,[])
+Just (App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2)))
+          (Var "[]")
+     ,[])

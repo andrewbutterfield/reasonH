@@ -164,20 +164,20 @@ hsExp2Expr ftab (HsList hses)  =  hsExps2Expr ftab hses
 hsExp2Expr _ hse  =  error ("hsExp2Expr NYIf "++show hse)
 \end{code}
 
+We want to match and build infix operators as simple unary applications:
+\begin{code}
+eEq = Var "=="
+pattern InfixApp e1 op e2 = App (App (Var op) e1) e2
+pattern Equal e1 e2       = App (App (Var "==") e1) e2
+\end{code}
+
 \begin{code}
 eNull = Var "[]"
 eCons = Var ":"
 hsExps2Expr :: FixTab -> [HsExp] -> Expr
 hsExps2Expr _ []          =  eNull
 hsExps2Expr ftab (hse:hses)
-  =  App (App eCons $ hsExp2Expr ftab hse) $ hsExps2Expr ftab hses
-\end{code}
-
-We want to match and build infix operators as simple unary applications:
-\begin{code}
-eEq = Var "=="
-pattern InfixApp e1 op e2 = App (App (Var op) e1) e2
-pattern Equal e1 e2       = App (App (Var "==") e1) e2
+  =  InfixApp (hsExp2Expr ftab hse) ":" (hsExps2Expr ftab hses)
 \end{code}
 
 \newpage
@@ -238,13 +238,13 @@ We will describe ``tree-twisting'' below.
 hsInfix2Expr :: FixTab -> HsExp -> Expr
 -- this is usually called with iapp being a HsInfixApp
 hsInfix2Expr fixtab iapp
- =  e
+ =  dbg "hsI2E.e :\n" e
  where
-   (ops,es) = split fixtab iapp
+   (ops,es) = split fixtab $ dbg "hsI2E.iapp :\n" iapp
    prcf = fst . readFixTab fixtab
-   (ops',es') = pfusing prcf 9 (ops,es)
+   (ops',es') = pfusing prcf 9 (dbg "hsI2E.ops :\n" ops,dbg "hsI2E.es :\n" es)
    assf = snd . readFixTab fixtab
-   e = twist prcf assf $ head es' -- won't be empty
+   e = twist prcf assf $ head $ dbg "hsI2E.es' :\n" es' -- won't be empty
 \end{code}
 
 \newpage

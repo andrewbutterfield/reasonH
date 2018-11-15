@@ -36,10 +36,14 @@ parseTests
  = testGroup "\nParsing Tests"
     [ testCase "'1:2:[]' parses  as '1:(2:[])' "
        ( eparse "1:2:[]" @?= eparse "1:(2:[])" )
-    , testCase "'1:2:[]' not same as '(1:2):[]' "
-       ( eparse "1:2:[]" @?/= eparse "(1:2):[]" )
-    , testCase "'1+2+3' parses  as '(1+2)+3' "
-       ( eparse "1+2+3" @?= eparse "(1+2)+3" )
-    , testCase "'1+2+3' not same as '1+(2+3)' "
-       ( eparse "1+2+3" @?/= eparse "1+(2+3)" )
+    -- , testCase "'1:2:[]' not same as '(1:2):[]' "
+    --    ( eparse "1:2:[]" @?/= eparse "(1:2):[]" )
+    -- , testCase "'[1]++[2]++[3]' parses  as '([1]++[2])++[3]' "
+    --    ( eparse "[1]++[2]++[3]" @?= eparse "([1]++[2])++[3]" )
+    -- , testCase "'[1]++[2]++[3]' not same as '[1]++([2]++[3])' "
+    --    ( eparse "[1]++[2]++[3]" @?/= eparse "[1]++([2]++[3])" )
+    -- , testCase "'1+2+3' parses  as '(1+2)+3' "
+    --    ( eparse "1+2+3" @?= eparse "(1+2)+3" )
+    -- , testCase "'1+2+3' not same as '1+(2+3)' "
+    --    ( eparse "1+2+3" @?/= eparse "1+(2+3)" )
     ]
