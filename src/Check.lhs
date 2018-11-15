@@ -146,14 +146,18 @@ checkStep :: [Mdl] -> [Theory] -> Expr -> Expr -> Justification -> Expr
 checkStep mdls thrys hyp goal (BECAUSE _ (D dnm i) howused what) goal'
 -- need to modify this based on howused !!!!
  = case searchMods mdls dnm i of
-     Nothing -> rep ("!!: Can't find definition "++dnm++"."++show i)
-     Just defn
-       -> case findAndApplyDEFN (mdlsKnown mdls) defn goal howused what of
-           Nothing -> rep ("!!: Failed to apply "++show dnm++"."++show i)
-           Just goal''
-             -> if goal'' == goal'
-                 then rep ("OK: use of "++dnm++"."++show i++" is correct.")
-                 else rep ("!!: use of "++dnm++"."++show i++" differs.")
+   Nothing -> rep ("!!: Can't find definition "++dnm++"."++show i)
+   Just defn
+    -> case findAndApplyDEFN (mdlsKnown mdls) defn goal howused what of
+       Nothing -> rep ("!!: Failed to apply "++show dnm++"."++show i)
+       Just goal''
+        -> if goal'' == goal'
+           then rep ("OK: use of "++dnm++"."++show i++" is correct.")
+           else rep $ unlines
+                 [ "!!: use of "++dnm++"."++show i++" differs."
+                 , "Expected:\n"++show goal'
+                 , "Got:\n"++show goal''
+                 ]
 
 checkStep mdls thrys hyp goal (BECAUSE _ (L lnm) howused what) goal'
  = case searchTheories thrys lnm of

@@ -1,0 +1,32 @@
+length (10:20:30:[])
+ = DEF length.2
+1 + length (20:30:[])
+ = DEF length.2
+1 + (1 + length (30:[]))
+ = DEF length.2
+1 + (1 + (1 + length []))
+ = DEF length.1
+1 + (1 + (1 + 0))
+ = SIMP
+3
+
+
+Strategy: reduce LHS to RHS
+OK: correct first expression.
+!!: use of length.2 differs.
+Expected:
+App (App (Var "+") (LInt 1))
+    (App (Var "length") (App (App (Var ":") (App (App (Var ":") (LInt 20)) (LInt 30))) (Var "[]")))
+Got:
+App (App (Var "+") (LInt 1)) 
+    (App (Var "length") (Var "[]"))
+!!: use of length.2 differs.
+Expected:
+App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (App (App (Var ":") (LInt 30)) (Var "[]"))))
+Got:
+App (App (Var "+") (LInt 1)) (App (App (Var "+") (LInt 1)) (App (Var "length") (Var "[]")))
+OK: use of length.2 is correct.
+OK: use of length.1 is correct.
+OK: use of SIMP is correct.
+check complete
+OK: correct last expression.
