@@ -1,84 +1,59 @@
-length (10:20:30:[])
- = DEF length.2
-1 + length (20:30:[])
- = DEF length.2
-1 + (1 + length (30:[]))
- = DEF length.2
-1 + (1 + (1 + length []))
- = DEF length.1
-1 + (1 + (1 + 0))
- = SIMP
-3
+hprover> ph 1:2:[]
 
-
-eparse "1:2:[]" @?= eparse "1:(2:[])"
-
-hsI2E.iapp :
+haskell-src parse:
 HsInfixApp
-  (HsInfixApp (HsLit (HsInt 1))
-              (HsQConOp (Special HsCons))
-              (HsLit (HsInt 2))
+  (HsInfixApp
+    (HsLit (HsInt 1))
+    (HsQConOp (Special HsCons))
+    (HsLit (HsInt 2))
   )
   (HsQConOp (Special HsCons))
   (HsList [])
-hsI2E.ops :
-[":",":"]
-hsI2E.es :
-[LInt 1,LInt 2,Var "[]"]
-hsI2E.es' :
-[App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2))) (Var "[]")]
-hsI2E.e :
-App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2))) (Var "[]")
 
-
-
-hsI2E.iapp :
-HsInfixApp
-  (HsLit (HsInt 1))
-  (HsQConOp (Special HsCons))
-  (HsParen (HsInfixApp
-             (HsLit (HsInt 2))
-             (HsQConOp (Special HsCons))
-             (HsList [])
-           )
-  )
-hsI2E.ops :
-[":"]
-
-hsI2E.iapp :
-HsInfixApp (HsLit (HsInt 2))
-           (HsQConOp (Special HsCons))
-           (HsList [])
-hsI2E.ops :
-[":"]
-hsI2E.es :
-[LInt 2,Var "[]"]
-hsI2E.es' :
-[App (App (Var ":") (LInt 2)) (Var "[]")]
-hsI2E.e :
-App (App (Var ":") (LInt 2)) (Var "[]")
-
-hsI2E.es :
-[ LInt 1, App (App (Var ":") (LInt 2)) (Var "[]") ]
-hsI2E.es' :
-[ App (App (Var ":") (LInt 1))
-      (App (App (Var ":") (LInt 2))
-           (Var "[]"))
-]
-hsI2E.e :
+simple AST version:
 App (App (Var ":") (LInt 1))
     (App (App (Var ":") (LInt 2))
          (Var "[]")
     )
-    
-    '1:2:[]' parses  as '1:(2:[])' : [Failed]
 
+hprover> ph (1:2):[]
 
-expected:
-Just (App (App (Var ":") (LInt 1))
-          (App (App (Var ":") (LInt 2)) (Var "[]"))
-     ,[])
- but got:
-Just (App (App (Var ":") (App (App (Var ":") (LInt 1)) (LInt 2)))
-          (Var "[]")
-     ,[])
+haskell-src parse:
+HsInfixApp
+  (HsParen
+    (HsInfixApp
+      (HsLit (HsInt 1))
+      (HsQConOp (Special HsCons))
+      (HsLit (HsInt 2))
+    )
+  )
+  (HsQConOp (Special HsCons))
+  (HsList [])
+
+simple AST version:  fixed, but shouldn't be ! 
+App (App (Var ":") (LInt 1))
+    (App (App (Var ":")
+              (LInt 2)
+         )
+         (Var "[]")
+    )
+
+hprover> ph 1:(2:[])
+
+haskell-src parse:
+HsInfixApp
+  (HsLit (HsInt 1))
+  (HsQConOp (Special HsCons))
+  (HsParen
+    (HsInfixApp
+      (HsLit (HsInt 2))
+      (HsQConOp (Special HsCons))
+      (HsList [])
+    )
+  )
+
+simple AST version:
+App (App (Var ":") (LInt 1))
+    (App (App (Var ":") (LInt 2))
+         (Var "[]")
+    )

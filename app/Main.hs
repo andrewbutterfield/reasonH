@@ -90,6 +90,7 @@ hreqCommands = [ cmdShowState
                , cmdLoadHaskell -- deprecated for now.
                , cmdLoadTheory
                , cmdCheckTheorem
+               , cmdParseHaskell
                ]
 
 cmdShowState :: HReqCmdDescr
@@ -193,6 +194,26 @@ readHaskell fnroot
   = do let fname = fnroot ++ ".hs"
        modstr <- readFile ("examples/"++fname)
        parseHModule fname modstr
+
+cmdParseHaskell :: HReqCmdDescr
+cmdParseHaskell
+  = ( "ph"
+    , "parse Haskell"
+    , "ph <haskell-expr> -- parse haskell expression on command line"
+    , parseHaskell )
+
+parseHaskell args hreqs
+ = do case hParseE (ParseMode "ph") [] [(1,estr)] of
+        But msgs -> putStrLn $ unlines msgs
+        Yes (hsexp,_)
+          -> do putStrLn "haskell-src parse:"
+                putStrLn $ show hsexp
+                let expr = hsExp2Expr preludeFixTab hsexp
+                putStrLn "simple AST version:"
+                putStrLn $ show expr
+      return hreqs
+ where estr = unwords args
+
 
 cmdLoadTheory :: HReqCmdDescr
 cmdLoadTheory

@@ -238,13 +238,13 @@ We will describe ``tree-twisting'' below.
 hsInfix2Expr :: FixTab -> HsExp -> Expr
 -- this is usually called with iapp being a HsInfixApp
 hsInfix2Expr fixtab iapp
- =  dbg "hsI2E.e :\n" e
+ =  e
  where
-   (ops,es) = split fixtab $ dbg "hsI2E.iapp :\n" iapp
+   (ops,es) = split fixtab iapp
    prcf = fst . readFixTab fixtab
-   (ops',es') = pfusing prcf 9 (dbg "hsI2E.ops :\n" ops,dbg "hsI2E.es :\n" es)
+   (ops',es') = pfusing prcf 9 (ops,es)
    assf = snd . readFixTab fixtab
-   e = twist prcf assf $ head $ dbg "hsI2E.es' :\n" es' -- won't be empty
+   e = twist prcf assf $ head $ es' -- won't be empty
 \end{code}
 
 \newpage
@@ -266,6 +266,7 @@ We use \texttt {split} to perform the 2nd argument conversion and splitting
 split :: FixTab -> HsExp -> ( [String], [Expr] )
 
 -- split (B e1 op e2) = ( ops ++ [op] , es ++ [e2]) where (ops,es) = split e1
+-- !!!!! if hse1 is a HsParen, then we might need to leave it alone!!!
 split ftab (HsInfixApp hse1 hsop hse2)
   = (ops++[op],es++[hsExp2Expr ftab hse2])
   where
@@ -273,6 +274,7 @@ split ftab (HsInfixApp hse1 hsop hse2)
     (ops,es)  =  split ftab hse1
 
 -- split a@(A _) = ( [], [a] )
+-- !!!! if hsexp is HsParen then that is stripped off !!!
 split ftab hsexp = ([],[hsExp2Expr ftab hsexp])
 \end{code}
 
@@ -324,9 +326,6 @@ twist prcf assf (InfixApp e1 op e2)
 twist prcf assf e = e
 
 twist' prcf assf e@(InfixApp (InfixApp e1 op1 e2) op2 e3)
-  -- does the parser have specific handling for : and ++ ???
-  -- so it appears !!!!
-  | op1 `elem` [":","++"] && op2 `elem` [":","++"]  = e
   | assf op1 == ARight && assf op2 == ARight && prcf op1 == prcf op2
     = InfixApp e1 op1 (insSE prcf assf op2 e2 e3 )
 twist' _ _ e = e
@@ -478,7 +477,9 @@ preludeFixTab
       , ("div",(7,ALeft)), ("mod",(7,ALeft))
 
       , ("+",(6,ALeft)), ("-",(6,ALeft))     -- infixl 6  +, -
-      , (":",(5,ARight)), ("++",(5,ARight))  -- infixr 5  : ++
+
+      , (":",(5,ARight))  -- infixr 5  :
+      , ("++",(5,ALeft))  -- infixl 5  ++
 
         -- infix  4  ==, /=, <, <=, >=, >, `elem`, `notElem`
       , ("==",(4,ANone)), ("/=",(4,ANone))

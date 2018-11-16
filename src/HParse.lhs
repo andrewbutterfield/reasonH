@@ -8,7 +8,7 @@ LICENSE: BSD3, see file LICENSE at reasonEq root
 module HParse
 ( Line, Lines, Parser
 , parseHModule
-, parseExpr
+, parseExpr, hParseE
 , parseEqual
 , hs42
 , ParseMode(..), ParseResult(..), SrcLoc(..), pFail
@@ -61,11 +61,17 @@ parseHModule fname modstr
 
 \begin{code}
 parseExpr :: Monad m => ParseMode -> Lines -> Parser m Expr
-parseExpr pmode restlns [] = pFail pmode 0 0 "no expression!"
-parseExpr pmode restlns chunk@((lno,_):_)
+parseExpr pmode restlns chunk
+ = do (hsexp,lns') <- hParseE pmode restlns chunk
+      return (hsExp2Expr preludeFixTab hsexp,lns')
+
+hParseE :: Monad m => ParseMode -> Lines -> Parser m HsExp
+hParseE pmode restlns [] = pFail pmode 0 0 "no expression!"
+hParseE pmode restlns chunk@((lno,_):_)
   = case parseModuleWithMode pmode (mkNakedExprModule chunk) of
       ParseFailed _ msg  -> pFail pmode lno 1 msg
-      ParseOk hsmod -> return (getNakedExpr hsmod, restlns)
+      ParseOk hsmod -> do hsexp <- getNakedExpr hsmod
+                          return (hsexp, restlns)
 \end{code}
 
 \begin{code}
@@ -79,14 +85,15 @@ mkNakedExprModule chunk
 \end{code}
 
 \begin{code}
-getNakedExpr :: HsModule -> Expr
+getNakedExpr :: Monad m => HsModule -> m HsExp
 getNakedExpr
  (HsModule _ _ _ _ [ HsPatBind _ _ (HsUnGuardedRhs hsexp) [] ])
-    = hsExp2Expr preludeFixTab hsexp
-getNakedExpr _ = hs42
+    = return hsexp
+getNakedExpr _ = fail "can't find the naked expression"
 
 hs42 = LInt 42
 \end{code}
+
 
 \subsection{Parsing Equivalences}
 

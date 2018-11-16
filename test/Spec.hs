@@ -9,6 +9,9 @@ import Control.Monad
 import AST
 import HParse
 
+import Debug.Trace
+dbg msg x = trace (msg ++ show x) x
+mdbg msg x = return $! dbg msg x
 main = defaultMain tests -- runs the tests
 
 tests :: [TF.Test]
@@ -29,21 +32,21 @@ actual @?/= expected = assertNotEqual "" expected actual
 
 -- parseExpr :: Monad m => ParseMode -> Lines -> Parser m Expr
 eparse :: String -> Maybe (Expr,Lines)
-eparse estr = parseExpr undefined [] [(1,estr)]
+eparse estr = parseExpr (ParseMode "<test>") [] [(1,estr)]
 
 parseTests :: TF.Test
 parseTests
  = testGroup "\nParsing Tests"
     [ testCase "'1:2:[]' parses  as '1:(2:[])' "
-       ( eparse "1:2:[]" @?= eparse "1:(2:[])" )
-    -- , testCase "'1:2:[]' not same as '(1:2):[]' "
-    --    ( eparse "1:2:[]" @?/= eparse "(1:2):[]" )
-    -- , testCase "'[1]++[2]++[3]' parses  as '([1]++[2])++[3]' "
-    --    ( eparse "[1]++[2]++[3]" @?= eparse "([1]++[2])++[3]" )
-    -- , testCase "'[1]++[2]++[3]' not same as '[1]++([2]++[3])' "
-    --    ( eparse "[1]++[2]++[3]" @?/= eparse "[1]++([2]++[3])" )
-    -- , testCase "'1+2+3' parses  as '(1+2)+3' "
-    --    ( eparse "1+2+3" @?= eparse "(1+2)+3" )
-    -- , testCase "'1+2+3' not same as '1+(2+3)' "
-    --    ( eparse "1+2+3" @?/= eparse "1+(2+3)" )
+        ( eparse "1:2:[]" @?= eparse "1:(2:[])" )
+    , testCase "'1:2:[]' not same as '(1:2):[]' "
+       ( eparse "1:2:[]" @?/= eparse "(1:2):[]" )
+    , testCase "'[1]++[2]++[3]' parses  as '([1]++[2])++[3]' "
+       ( eparse "[1]++[2]++[3]" @?= eparse "([1]++[2])++[3]" )
+    , testCase "'[1]++[2]++[3]' not same as '[1]++([2]++[3])' "
+       ( eparse "[1]++[2]++[3]" @?/= eparse "[1]++([2]++[3])" )
+    , testCase "'1+2+3' parses  as '(1+2)+3' "
+       ( eparse "1+2+3" @?= eparse "(1+2)+3" )
+    , testCase "'1+2+3' not same as '1+(2+3)' "
+       ( eparse "1+2+3" @?/= eparse "1+(2+3)" )
     ]
