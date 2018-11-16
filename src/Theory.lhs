@@ -196,9 +196,9 @@ data Law
 data InductionScheme
  = IND {
      indType :: String
+   , indVar  :: String  -- generic induction variable
    , indBase :: Expr             -- base value
-   , indStep :: (String, Expr)   -- induction var to step expression
-   , indInj :: (Expr,Expr)      -- bits equal whole
+   , indStep :: Expr   -- induction var to step expression
    }
  deriving Show
 \end{code}
@@ -357,16 +357,14 @@ parseIndSchema pmode theory typeName lno (ln1:ln2:ln3:lns)
          Nothing
            ->  pFail pmode lno 1 "Injective law expected"
          Just ((e1,e2), lns')
-           ->  parseBody pmode
-                         (thIndScheme__ (++[ ind{indInj=(e1,e2)} ]) theory)
-                         lns'
+           ->  parseBody pmode (thIndScheme__ (++[ind]) theory) lns'
  where
    (gotBase,bValue) = parseKeyAndValue pmode "BASE" $ snd ln1
    (gotStep,sVar,eStep) = parseKeyNameKeyValue pmode "STEP" "-->" $ snd ln2
    len = length "INJ"
    (ln3inj,ln3rest) = splitAt len $ snd ln3
    gotInj = ln3inj == "INJ"
-   ind = IND typeName bValue (sVar,eStep) (hs42,hs42)
+   ind = IND typeName sVar bValue eStep
 parseIndSchema pmode theory typeName lno _
   = pFail pmode lno 0 "Incomplete Induction Schema"
 \end{code}

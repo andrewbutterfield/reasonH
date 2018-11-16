@@ -33,8 +33,8 @@ r1 `rjoin` r2 = r1 ++ r2
 \begin{code}
 checkTheorem :: [Mdl] -> [Theory] -> Theorem -> Report
 checkTheorem mdls thrys thm
-  = rep ("Checking theorem '"++thmName thm++"'")
-     `rjoin` (checkStrategy mdls thrys (theorem thm) $ strategy thm)
+  = rep ("\nChecking theorem '"++thmName thm++"'")
+     `rjoin` (checkStrategy mdls thrys dummyH (theorem thm) $ strategy thm)
 \end{code}
 
 Induction and case-based strategies require a hypothesis to be passed to
@@ -46,36 +46,48 @@ dummyH = Var "??"
 \end{code}
 
 \begin{code}
-checkStrategy :: [Mdl] -> [Theory] -> Expr -> Strategy -> Report
+checkStrategy :: [Mdl] -> [Theory] -> Expr -> Expr -> Strategy -> Report
 \end{code}
 
 \begin{code}
-checkStrategy mdls thrys goal (ReduceAll calc)
-  = rep "Strategy: reduce all to True"
+checkStrategy mdls thrys hyp goal (ReduceAll calc)
+  = rep "\nStrategy: reduce all to True"
      `rjoin` checkFirst calc goal
-     `rjoin` checkCalc mdls thrys dummyH calc
+     `rjoin` checkCalc mdls thrys hyp calc
      `rjoin` checkLast calc (LBool True)
 
-checkStrategy mdls thrys goal (ReduceLHS calc)
-  = rep "Strategy: reduce LHS to RHS"
+checkStrategy mdls thrys hyp goal (ReduceLHS calc)
+  = rep "\nStrategy: reduce LHS to RHS"
      `rjoin` checkFirst calc (lhsOf goal)
-     `rjoin` checkCalc mdls thrys dummyH calc
+     `rjoin` checkCalc mdls thrys hyp calc
      `rjoin` checkLast calc (rhsOf goal)
 
-checkStrategy mdls thrys goal (ReduceRHS calc)
-  = rep "Strategy: reduce RHS to LHS"
+checkStrategy mdls thrys hyp goal (ReduceRHS calc)
+  = rep "\nStrategy: reduce RHS to LHS"
      `rjoin` checkFirst calc (rhsOf goal)
-     `rjoin` checkCalc mdls thrys dummyH calc
+     `rjoin` checkCalc mdls thrys hyp calc
      `rjoin` checkLast calc (lhsOf goal)
 
-checkStrategy mdls thrys goal (ReduceBoth cLHS cRHS)
-  = rep "Strategy: reduce RHS and LHS to same"
+checkStrategy mdls thrys hyp goal (ReduceBoth cLHS cRHS)
+  = rep "\n Strategy: reduce RHS and LHS to same"
      `rjoin` checkBothStart goal cLHS cRHS
-     `rjoin` rep "Check LHS" `rjoin` checkCalc mdls thrys dummyH cLHS
-     `rjoin` rep "Check RHS" `rjoin` checkCalc mdls thrys dummyH cRHS
+     `rjoin` rep "\nCheck LHS" `rjoin` checkCalc mdls thrys hyp cLHS
+     `rjoin` rep "\nCheck RHS" `rjoin` checkCalc mdls thrys hyp cRHS
      `rjoin` checkSameLast cLHS cRHS
 
-checkStrategy _ _ _ _  = rep "checkStrategy: NYI for Induction"
+-- istrat must be (Induction ...)
+checkStrategy mdls thrys hyp goal istrat
+  = rep ( "\nStrategy: Induction in " ++ var ++ " :: "++ typ )
+     `rjoin` checkIndScheme thrys goal bgoal igoal var typ
+     `rjoin` rep "\nCheck Base Case..."
+     `rjoin` checkStrategy mdls thrys hyp bgoal (baseStrategy istrat)
+     `rjoin` rep "\nCheck Step Case..."
+     `rjoin` checkStrategy mdls thrys (assume istrat) igoal (stepStrategy istrat)
+     `rjoin` rep "\nInduction NYFI"
+  where
+    (var,typ) = iVar istrat
+    bgoal = bGoal istrat
+    igoal = iGoal istrat
 \end{code}
 
 
@@ -126,6 +138,19 @@ rhsOf (App (App eq _) e2)
 rhsOf e       =  e
 \end{code}
 
+\begin{code}
+checkIndScheme thrys goal bgoal igoal var typ
+  = case findTheoryInds thrys typ of
+      Nothing -> rep ("No Induction scheme for "++typ)
+      Just inds
+       ->  rep ("Ind Scheme '"++typ++"' valid")
+           `rjoin`
+           rep "checkIndScheme n.y.f.i."
+      -- we need to check base = indscheme.base
+\end{code}
+
+
+\newpage
 We keep the best until last \dots
 \begin{code}
 checkCalc :: [Mdl] -> [Theory] -> Expr -> Calculation -> Report
@@ -160,7 +185,7 @@ checkStep mdls thrys hyp goal (BECAUSE _ (D dnm i) howused what) goal'
                  ]
 
 checkStep mdls thrys hyp goal (BECAUSE _ (L lnm) howused what) goal'
- = case searchTheories thrys lnm of
+ = case findTheoryLaws thrys lnm of
      Nothing -> rep ("!!: Can't find law "++lnm)
      Just thelaw
        -> case findAndApplyLAW (mdlsKnown mdls) thelaw goal howused what of
@@ -174,7 +199,13 @@ checkStep mdls thrys hyp goal (BECAUSE _ SMP _ _) goal'
   | exprSIMP goal == goal'  =  rep ("OK: use of SIMP is correct.")
   | otherwise               =  rep ("!!: use of SIMP differs.")
 
-checkStep _ _ _ _ just _ = rep ("checkStep NYI for "++show (law just))
+checkStep mdls thrys hyp goal (BECAUSE _ IH howused what) goal'
+ = case findAndApplyLAW (mdlsKnown mdls) (LAW "IH" hyp) goal howused what of
+     Nothing -> rep ("!!: Failed to apply IH "++show howused)
+     Just goal''
+       -> if goal'' == goal'
+           then rep ("OK: use of IH "++show howused++" is correct.")
+           else rep ("!!: use of IH "++show howused++" differs.")
 \end{code}
 
 We need all names defined in imported haskell files:
@@ -262,16 +293,29 @@ applyDEFN knowns R2L (lhs,rhs,ldcls) expr
 \end{code}
 
 \begin{code}
-searchTheories [] lnm = Nothing
-searchTheories (thry:thrys) lnm
+findTheoryLaws [] lnm = Nothing
+findTheoryLaws (thry:thrys) lnm
   = case searchLaws (thLaws thry) lnm of
-      Nothing  ->  searchTheories thrys lnm
+      Nothing  ->  findTheoryLaws thrys lnm
       jlaw     ->  jlaw
 
 searchLaws [] lnm = Nothing
 searchLaws (lw:laws) lnm
   | lawName lw == lnm  =  Just lw
   | otherwise  = searchLaws laws lnm
+\end{code}
+
+\begin{code}
+findTheoryInds [] typ = Nothing
+findTheoryInds (thry:thrys) typ
+  = case searchInds (thIndScheme thry) typ of
+      Nothing  ->  findTheoryInds thrys typ
+      inds     ->  inds
+
+searchInds [] typ = Nothing
+searchInds (inds:indss) typ
+  | indType inds == typ  =  Just inds
+  | otherwise  = searchInds indss typ
 \end{code}
 
 
