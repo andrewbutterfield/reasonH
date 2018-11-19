@@ -154,7 +154,7 @@ checkIndScheme thrys goal bgoal igoal var typ
 We keep the best until last \dots
 \begin{code}
 checkCalc :: [Mdl] -> [Theory] -> Expr -> Calculation -> Report
-checkCalc mdls thrys hyp (CALC goal [])  =  rep "OK: no steps to check"
+checkCalc mdls thrys hyp (CALC goal [])  =  rep "!!: no steps to check"
 checkCalc mdls thrys hyp (CALC goal steps)
   = checkSteps mdls thrys hyp goal steps
 checkSteps _ _ _ _ []  = rep "check complete"

@@ -686,7 +686,7 @@ plus extra information if required.
 
 \begin{code}
 emptyLine :: String -> Bool
-emptyLine = all isSpace
+emptyLine str = all isSpace str || take 2 (dropWhile isSpace str) == "--"
 \end{code}
 
 We return a boolean that is true if the parse suceeds.
